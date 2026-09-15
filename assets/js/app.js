@@ -35,6 +35,9 @@
         admin: false,
         route: 'home',
         matchesFilter: 'all',
+        /* Турнирная таблица: компактный вид (без горизонтальной прокрутки).
+           Влияет только на телефонах — остальные размеры экрана показывают все столбцы. */
+        standingsCompact: true,
         editingTeamId: null,
         editingMatchId: null,
         editingPlayer: null
@@ -874,27 +877,42 @@
 
     function renderStandings() {
         var standings = L.computeStandings(state.data.teams, state.data.matches);
+        var table = $('standings-table');
+        var toggle = document.querySelector('[data-action="toggle-standings-columns"]');
+
+        /* Компактный вид (телефон): только место, команда, игры, разница мячей и очки.
+           Остальные показатели выводятся строкой под названием команды. */
+        if (table) {
+            table.classList.toggle('is-compact', state.standingsCompact);
+        }
+
+        if (toggle) {
+            toggle.textContent = state.standingsCompact ? 'Все столбцы' : 'Основное';
+        }
 
         $('standings-body').innerHTML = standings.map(function (row) {
             var rowClass = row.place === 1 ? 'bg-amber-50' : (row.place <= 3 ? 'bg-primary-50' : '');
             var diffClass = row.goalDiff > 0 ? 'text-green-700' : (row.goalDiff < 0 ? 'text-red-700' : '');
+            var detail = 'В ' + row.wins + ' · Н ' + row.draws + ' · П ' + row.losses +
+                ' · Мячи ' + row.goalsFor + '–' + row.goalsAgainst;
 
             return '' +
                 '<tr class="' + rowClass + '">' +
                     '<td class="num font-medium text-dark-600">' + row.place + '</td>' +
-                    '<td>' +
+                    '<td class="cell-team">' +
                         '<div class="flex items-center gap-3">' +
                             teamBadge({ id: row.id, name: row.name }, true) +
                             '<span class="font-medium">' + esc(row.name) + '</span>' +
                         '</div>' +
+                        '<span class="row-detail">' + detail + ' · ' + formDots(row.form) + '</span>' +
                     '</td>' +
                     '<td class="num">' + row.played + '</td>' +
-                    '<td class="num text-green-700">' + row.wins + '</td>' +
-                    '<td class="num">' + row.draws + '</td>' +
-                    '<td class="num text-red-700">' + row.losses + '</td>' +
-                    '<td class="num">' + row.goalsFor + '–' + row.goalsAgainst + '</td>' +
+                    '<td class="num text-green-700 col-optional">' + row.wins + '</td>' +
+                    '<td class="num col-optional">' + row.draws + '</td>' +
+                    '<td class="num text-red-700 col-optional">' + row.losses + '</td>' +
+                    '<td class="num col-optional">' + row.goalsFor + '–' + row.goalsAgainst + '</td>' +
                     '<td class="num font-medium ' + diffClass + '">' + (row.goalDiff > 0 ? '+' : '') + row.goalDiff + '</td>' +
-                    '<td class="num hidden sm:table-cell">' + formDots(row.form) + '</td>' +
+                    '<td class="num col-optional">' + formDots(row.form) + '</td>' +
                     '<td class="num font-bold text-primary-900">' + row.points + '</td>' +
                 '</tr>';
         }).join('');
@@ -1032,10 +1050,10 @@
                     '<button type="button" class="btn btn-sm btn-ghost" data-action="team-cancel-edit" data-id="' + team.id + '">Отмена</button>' +
                   '</div>'
                 : '<div class="flex flex-wrap gap-2">' +
-                    '<button type="button" class="btn btn-sm btn-ghost" data-action="team-rename" data-id="' + team.id + '">' +
-                        icon('pencil') + 'Изменить</button>' +
-                    '<button type="button" class="btn btn-sm btn-danger" data-action="team-delete" data-id="' + team.id + '">' +
-                        icon('trash') + 'Удалить</button>' +
+                    '<button type="button" class="btn btn-sm btn-ghost btn-icon" data-action="team-rename" data-id="' + team.id + '" title="Переименовать команду">' +
+                        icon('pencil') + '<span class="btn-text">Изменить</span></button>' +
+                    '<button type="button" class="btn btn-sm btn-danger btn-icon" data-action="team-delete" data-id="' + team.id + '" title="Удалить команду">' +
+                        icon('trash') + '<span class="btn-text">Удалить</span></button>' +
                   '</div>';
 
             var matchesCount = state.data.matches.filter(function (match) {
@@ -1044,9 +1062,9 @@
 
             return '<tr>' +
                 '<td>' + nameCell + '</td>' +
-                '<td class="num">' + (team.players || []).length + '</td>' +
-                '<td class="num">' + matchesCount + '</td>' +
-                '<td>' + actions + '</td>' +
+                '<td class="num" data-label="Игроков">' + (team.players || []).length + '</td>' +
+                '<td class="num" data-label="Матчей">' + matchesCount + '</td>' +
+                '<td class="admin-actions">' + actions + '</td>' +
             '</tr>';
         }).join('');
     }
@@ -1071,9 +1089,9 @@
             var teamB = L.getTeamName(state.data.teams, match.teamB);
 
             return '<tr>' +
-                '<td class="whitespace-nowrap">' + esc(L.formatDate(match.date, 'numeric')) + '</td>' +
+                '<td class="whitespace-nowrap" data-label="Дата">' + esc(L.formatDate(match.date, 'numeric')) + '</td>' +
                 '<td>' + esc(teamA) + ' — ' + esc(teamB) + '</td>' +
-                '<td class="num">' +
+                '<td class="num" data-label="Счёт">' +
                     '<div class="inline-flex items-center gap-1">' +
                         '<input type="number" min="0" max="' + CONFIG.maxScore + '" step="1" class="admin-score" id="score-a-' +
                             match.id + '" value="' + (match.scoreA === null ? '' : match.scoreA) +
@@ -1084,19 +1102,19 @@
                             '" aria-label="Счёт команды ' + esc(teamB) + '">' +
                     '</div>' +
                 '</td>' +
-                '<td class="num">' + statusPill(match) + '</td>' +
-                '<td>' +
-                    '<div class="flex flex-wrap gap-2">' +
+                '<td class="num" data-label="Статус">' + statusPill(match) + '</td>' +
+                '<td class="admin-actions">' +
+                    '<div class="flex flex-wrap gap-2 justify-end">' +
                         '<button type="button" class="btn btn-sm btn-primary" data-action="match-save-score" data-id="' +
                             match.id + '">' + icon('check') + 'Сохранить счёт</button>' +
                         (match.finished
-                            ? '<button type="button" class="btn btn-sm btn-ghost" data-action="match-reopen" data-id="' +
-                                match.id + '">' + icon('undo') + 'Переоткрыть</button>'
+                            ? '<button type="button" class="btn btn-sm btn-ghost btn-icon" data-action="match-reopen" data-id="' +
+                                match.id + '" title="Переоткрыть матч">' + icon('undo') + '<span class="btn-text">Переоткрыть</span></button>'
                             : '') +
-                        '<button type="button" class="btn btn-sm btn-ghost" data-action="match-edit" data-id="' +
-                            match.id + '">' + icon('pencil') + 'Изменить</button>' +
-                        '<button type="button" class="btn btn-sm btn-danger" data-action="match-delete" data-id="' +
-                            match.id + '">' + icon('trash') + 'Удалить</button>' +
+                        '<button type="button" class="btn btn-sm btn-ghost btn-icon" data-action="match-edit" data-id="' +
+                            match.id + '" title="Изменить матч">' + icon('pencil') + '<span class="btn-text">Изменить</span></button>' +
+                        '<button type="button" class="btn btn-sm btn-danger btn-icon" data-action="match-delete" data-id="' +
+                            match.id + '" title="Удалить матч">' + icon('trash') + '<span class="btn-text">Удалить</span></button>' +
                     '</div>' +
                 '</td>' +
             '</tr>';
@@ -1875,6 +1893,9 @@
         } else if (action === 'filter') {
             state.matchesFilter = element.getAttribute('data-filter') || 'all';
             renderMatches();
+        } else if (action === 'toggle-standings-columns') {
+            state.standingsCompact = !state.standingsCompact;
+            renderStandings();
         } else if (action === 'hide-banner') {
             var banner = $('data-warning');
 

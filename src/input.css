@@ -655,8 +655,19 @@
 
 /* ==================================================================== */
 /* Смартфоны: ширина экрана до 640px (до брейкпоинта sm у Tailwind)     */
+/*                                                                      */
+/* Принцип: ни таблица, ни блок не требуют горизонтальной прокрутки.    */
+/* Второстепенные данные уходят в компактный вид (турнирная таблица)    */
+/* или раскрываются построчно (админ-таблицы → карточки), как в         */
+/* мобильных приложениях спортивной статистики.                         */
 /* Правила намеренно вне @layer, чтобы переопределять компоненты.       */
 /* ==================================================================== */
+
+/* Строка подробностей турнирной таблицы: на широких экранах не нужна,
+   всё видно в отдельных столбцах. */
+.row-detail {
+    display: none;
+}
 
 @media (max-width: 640px) {
     /* 16px в полях ввода: иначе iOS Safari приближает страницу при фокусе */
@@ -666,16 +677,59 @@
         font-size: 16px;
     }
 
-    /* Кнопки удобного для пальца размера */
+    /* --- Кнопки: единый аккуратный размер, без «раздутых» прямоугольников --- */
     .btn {
-        min-height: 46px;
+        min-height: 2.5rem;
+        padding: 0.5625rem 1rem;
     }
 
+    /* Мелкие кнопки — высота как у сегментированных элементов iOS (32px):
+       по ним удобно попадать пальцем, но они выглядят аккуратно */
     .btn-sm {
-        min-height: 40px;
+        min-height: 2rem;
+        padding: 0.375rem 0.75rem;
     }
 
-    /* Компактнее таблицы — меньше горизонтальной прокрутки */
+    /* Кнопки-иконки в таблицах админки: подпись скрыта, кнопка — ровный квадрат
+       (40×40 удобно нажимать пальцем и не ломает сетку строки) */
+    .admin-table .btn-icon {
+        width: 2.5rem;
+        height: 2.5rem;
+        padding: 0;
+        gap: 0;
+    }
+
+    .admin-table .btn-icon .btn-text {
+        display: none;
+    }
+
+    .admin-table .btn-icon .icon {
+        width: 1rem;
+        height: 1rem;
+    }
+
+    /* --- Турнирная таблица: компактный вид по умолчанию (номер, команда, И, РМ, О) --- */
+    .standings-table.is-compact .col-optional,
+    .standings-table.is-compact .team-badge {
+        display: none;
+    }
+
+    .standings-table.is-compact .row-detail {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.375rem;
+        margin-top: 0.125rem;
+        font-size: 0.6875rem;
+        font-weight: 400;
+        color: #5f6368;
+    }
+
+    .standings-table td.cell-team {
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
     .data-table {
         font-size: 0.8125rem;
     }
@@ -685,7 +739,20 @@
         padding: 0.5rem 0.625rem;
     }
 
-    /* Компактнее карточки, бейджи и статистика */
+    .standings-table th,
+    .standings-table td {
+        padding: 0.5rem;
+    }
+
+    /* Полная таблица (режим «Все столбцы» выбран вручную): ужимаем отступы,
+       чтобы и она умещалась по ширине экрана без горизонтальной прокрутки */
+    .standings-table:not(.is-compact) th,
+    .standings-table:not(.is-compact) td {
+        font-size: 0.75rem;
+        padding: 0.375rem 0.25rem;
+    }
+
+    /* --- Карточки, бейджи, статистика --- */
     .card-header {
         padding: 0.875rem;
     }
@@ -694,15 +761,14 @@
         padding: 0.75rem;
     }
 
-    .team-badge {
-        width: 36px;
-        height: 36px;
+    /* В карточке матча на телефоне названия команд важнее бейджей:
+       строка «Спартак 3 : 1 Динамо» читается целиком и не обрезается */
+    .match-card .team-badge {
+        display: none;
     }
 
-    .team-badge-sm {
-        width: 30px;
-        height: 30px;
-        font-size: 0.6875rem;
+    .score-display {
+        padding: 0.375rem 0.625rem;
     }
 
     .stat-box {
@@ -715,6 +781,70 @@
 
     .admin-card {
         padding: 1rem;
+    }
+
+    /* --- Админ-таблицы: строка становится карточкой (без прокрутки вбок) --- */
+    .admin-table,
+    .admin-table tbody,
+    .admin-table tr,
+    .admin-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .admin-table thead {
+        display: none;
+    }
+
+    .admin-table tr {
+        background: #3c4043;
+        border: 1px solid #5f6368;
+        border-radius: 4px;
+        padding: 0.625rem 0.75rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .admin-table tbody tr:hover {
+        background: #3c4043;
+    }
+
+    .admin-table td {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        border: 0;
+        padding: 0.25rem 0;
+        text-align: left;
+        overflow-wrap: anywhere;
+    }
+
+    /* Подпись столбца переезжает внутрь строки (как в мобильных приложениях) */
+    .admin-table td[data-label]::before {
+        content: attr(data-label);
+        flex: none;
+        font-size: 0.6875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #bdc1c6;
+    }
+
+    .admin-table td.num {
+        justify-content: flex-end;
+        text-align: right;
+    }
+
+    .admin-table td.admin-actions {
+        justify-content: flex-end;
+        padding-top: 0.5rem;
+    }
+
+    .admin-table .admin-input {
+        min-width: 0;
+    }
+
+    .admin-table .admin-score {
+        width: 3.5rem;
     }
 
     /* Уведомления — во всю ширину экрана, а не в угол */
