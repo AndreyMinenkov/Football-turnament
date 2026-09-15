@@ -49,6 +49,8 @@
     function createDefaultData() {
         return {
             version: CONFIG.dataVersion,
+            revision: 1,
+            updatedAt: new Date().toISOString(),
             teams: [
                 { id: 1, name: 'Спартак', players: ['Иванов А.', 'Петров П.', 'Сидоров С.'] },
                 { id: 2, name: 'Локомотив', players: ['Кузнецов К.', 'Попов П.'] },
@@ -205,8 +207,23 @@
         return day + ' ' + MONTHS_SHORT[month];
     }
 
+    /** «15 сентября 2026, 10:35» — для строки «данные обновлены …». */
+    function formatDateTime(value) {
+        var date = (value instanceof Date)
+            ? value
+            : new Date(String(value === null || value === undefined ? '' : value));
+
+        if (Number.isNaN(date.getTime())) {
+            return '';
+        }
+
+        return date.getDate() + ' ' + MONTHS_LONG[date.getMonth()] + ' ' + date.getFullYear() + ', ' +
+            pad2(date.getHours()) + ':' + pad2(date.getMinutes());
+    }
+
     /** Числовой ключ даты для сортировки (для дат без значения — «в конце» или «в начале»). */
     function dateKey(value, missingLast) {
+
         var date = parseISODate(value);
 
         if (!date) {
@@ -681,15 +698,47 @@
             });
         });
 
+        var updatedAt = (typeof raw.updatedAt === 'string' && !Number.isNaN(Date.parse(raw.updatedAt)))
+            ? raw.updatedAt
+            : new Date().toISOString();
+        var revision = toInt(raw.revision);
+
+        if (revision === null || revision < 1) {
+            revision = 1;
+        }
+
         return {
-            data: { version: CONFIG.dataVersion, teams: teams, matches: matches },
+            data: {
+                version: CONFIG.dataVersion,
+                revision: revision,
+                updatedAt: updatedAt,
+                teams: teams,
+                matches: matches
+            },
             repaired: repaired,
             reason: repaired ? 'Часть данных была исправлена автоматически' : ''
         };
     }
 
+    /**
+     * Помечает данные как изменённые: увеличивает revision и обновляет updatedAt.
+     * Вызывается при каждом сохранении — синхронизация по этим полям понимает,
+     * какая версия документа новее (локальная, в репозитории или у другого устройства).
+     */
+    function touchData(data, now) {
+        if (!isPlainObject(data)) {
+            return data;
+        }
+
+        data.revision = (toInt(data.revision) || 0) + 1;
+        data.updatedAt = (now instanceof Date ? now : new Date()).toISOString();
+
+        return data;
+    }
+
     /** Чтение данных из localStorage. Всегда возвращает корректную структуру (даже при сбое). */
     function loadFromStorage(storage) {
+
         if (!storage) {
             return {
                 data: createDefaultData(),
@@ -809,6 +858,7 @@
         toISODate: toISODate,
         todayISO: todayISO,
         formatDate: formatDate,
+        formatDateTime: formatDateTime,
         dateKey: dateKey,
         findTeam: findTeam,
         getTeamName: getTeamName,
@@ -824,6 +874,7 @@
         selectMatches: selectMatches,
         computeStandings: computeStandings,
         getStats: getStats,
+        touchData: touchData,
         normalizeData: normalizeData,
         loadFromStorage: loadFromStorage,
         saveToStorage: saveToStorage,

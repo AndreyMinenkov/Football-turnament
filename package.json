@@ -6,7 +6,7 @@
   "scripts": {
     "build:css": "tailwindcss -i ./src/input.css -o ./assets/css/tailwind.css --minify",
     "watch:css": "tailwindcss -i ./src/input.css -o ./assets/css/tailwind.css --watch",
-    "test": "node --test tests/logic.test.js tests/dom.test.js",
+    "test": "node --test tests/logic.test.js tests/sync.test.js tests/dom.test.js",
     "test:browser": "node --test tests/browser.test.js",
     "test:all": "npm test && npm run test:browser",
     "serve": "node tools/serve.js"

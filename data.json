@@ -1,0 +1,78 @@
+{
+  "version": 2,
+  "revision": 1,
+  "updatedAt": "2026-09-15T08:30:00.000Z",
+  "teams": [
+    {
+      "id": 1,
+      "name": "Спартак",
+      "players": [
+        "Иванов А.",
+        "Петров П.",
+        "Сидоров С."
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Локомотив",
+      "players": [
+        "Кузнецов К.",
+        "Попов П."
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Динамо",
+      "players": [
+        "Смирнов Д.",
+        "Волков В."
+      ]
+    },
+    {
+      "id": 4,
+      "name": "ЦСКА",
+      "players": [
+        "Михайлов М.",
+        "Новиков Н."
+      ]
+    }
+  ],
+  "matches": [
+    {
+      "id": 1,
+      "teamA": 1,
+      "teamB": 2,
+      "scoreA": 2,
+      "scoreB": 1,
+      "date": "2026-09-10",
+      "finished": true
+    },
+    {
+      "id": 2,
+      "teamA": 3,
+      "teamB": 4,
+      "scoreA": 1,
+      "scoreB": 1,
+      "date": "2026-09-11",
+      "finished": true
+    },
+    {
+      "id": 3,
+      "teamA": 1,
+      "teamB": 3,
+      "scoreA": null,
+      "scoreB": null,
+      "date": "2026-09-20",
+      "finished": false
+    },
+    {
+      "id": 4,
+      "teamA": 2,
+      "teamB": 4,
+      "scoreA": null,
+      "scoreB": null,
+      "date": "2026-09-21",
+      "finished": false
+    }
+  ]
+}

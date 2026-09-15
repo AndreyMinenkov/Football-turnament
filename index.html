@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
-    <!-- Content Security Policy: сайт не подключает внешние ресурсы, поэтому политика строгая.
+    <!-- Content Security Policy: сайт не подключает сторонние ресурсы, поэтому политика строгая.
+         Разрешены соединения только с самого сайта и с API GitHub (чтение и публикация данных турнира).
          Тот же заголовок дополнительно отдаётся файлом _headers на Netlify/Cloudflare Pages. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com; base-uri 'none'; form-action 'none'; object-src 'none'">
     <title>Футбольный турнир 2026 — таблица, команды, матчи</title>
 
     <!-- SEO и предпросмотр в соцсетях -->
@@ -345,6 +345,51 @@
 
             <div id="admin-summary" class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6"></div>
 
+            <!-- Публикация данных в репозиторий (чтобы результаты видели все устройства) -->
+            <div class="admin-card mb-4">
+                <h3 class="admin-title">
+                    <svg class="icon" aria-hidden="true"><use href="#i-upload"></use></svg>Публикация результатов для всех устройств
+                </h3>
+                <p class="admin-hint mb-3">
+                    Общие данные турнира хранятся в файле <code class="font-mono">data.json</code> вашего репозитория на GitHub.
+                    Зрители читают его автоматически, поэтому после публикации результаты появятся у всех
+                    (страница GitHub обновляется за 30–60 секунд).
+                    Токен нужен только для записи: он вводится один раз на этом устройстве и в коде сайта не хранится.
+                    <a class="underline hover:text-white" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Создать токен</a>
+                </p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="field-label text-dark-200" for="github-token">Токен GitHub (право Contents: Read and write)</label>
+                        <input type="password" id="github-token" class="admin-input" placeholder="github_pat_…"
+                               autocomplete="off" spellcheck="false">
+                    </div>
+                    <div class="flex items-end gap-2 flex-wrap">
+                        <button type="button" class="btn btn-ghost" data-action="github-save-token">
+                            <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>Сохранить токен
+                        </button>
+                        <button type="button" class="btn btn-ghost" data-action="github-forget-token">Забыть токен</button>
+                    </div>
+                </div>
+
+                <label class="flex items-center gap-2 mt-3 text-sm" for="github-auto">
+                    <input type="checkbox" id="github-auto" class="h-4 w-4">
+                    <span>Публиковать автоматически после изменений (несколько правок подряд склеиваются в один коммит)</span>
+                </label>
+
+                <div class="flex flex-wrap gap-2 mt-3">
+                    <button type="button" class="btn btn-primary" data-action="github-publish">
+                        <svg class="icon" aria-hidden="true"><use href="#i-upload"></use></svg>Опубликовать сейчас
+                    </button>
+                    <button type="button" class="btn btn-ghost" data-action="github-check">Проверить доступ</button>
+                    <button type="button" class="btn btn-ghost" data-action="github-pull">
+                        <svg class="icon" aria-hidden="true"><use href="#i-download"></use></svg>Забрать из репозитория
+                    </button>
+                </div>
+
+                <p id="sync-status" class="admin-hint mt-3" role="status" aria-live="polite"></p>
+            </div>
+
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <!-- Добавление команды -->
                 <div class="admin-card">
@@ -483,11 +528,16 @@
     </noscript>
 
     <footer class="bg-dark-900 text-dark-400 py-6 mt-8">
-        <div class="max-w-7xl mx-auto px-4 text-center text-sm space-y-1">
+        <div class="max-w-7xl mx-auto px-4 text-center text-sm space-y-2">
             <p>&copy; 2026 Футбольный турнир. Летний Кубок.</p>
-            <p class="text-xs">
-                Статический сайт без серверной части: данные хранятся в браузере. Результаты обновляет администратор
-                через <button type="button" class="underline hover:text-white" data-action="navigate" data-page="admin">панель управления</button>.
+            <p class="text-xs flex flex-wrap items-center justify-center gap-2">
+                <span>Результаты обновляет администратор через
+                    <button type="button" class="underline hover:text-white" data-action="navigate" data-page="admin">панель управления</button>.
+                </span>
+                <span id="data-freshness"></span>
+                <button type="button" class="btn btn-sm btn-ghost" data-action="refresh-data">
+                    <svg class="icon" aria-hidden="true"><use href="#i-refresh"></use></svg>Обновить данные
+                </button>
             </p>
         </div>
     </footer>
@@ -495,8 +545,10 @@
     <!-- Всплывающие уведомления -->
     <div id="toast-container" class="toast-wrap" aria-live="polite" aria-atomic="false"></div>
 
-    <!-- Логика: сначала «чистый» модуль, затем слой DOM -->
+    <!-- Логика: настройки → чистая логика → синхронизация с репозиторием → слой DOM -->
+    <script src="assets/js/config.js" defer></script>
     <script src="assets/js/logic.js" defer></script>
+    <script src="assets/js/sync.js" defer></script>
     <script src="assets/js/app.js" defer></script>
 </body>
 </html>

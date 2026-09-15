@@ -15,16 +15,22 @@ const { JSDOM } = require('jsdom');
 const ROOT = path.resolve(__dirname, '..');
 const DATA_KEY = 'footballTournamentData';
 
+const L = require('../assets/js/logic.js');
+const { createMockRepository } = require('./helpers/mock-github.js');
+
 function readSource(relativePath) {
     return fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
 }
 
 /**
- * Поднимает страницу index.html в jsdom, выполняет оба скрипта приложения
+ * Поднимает страницу index.html в jsdom, выполняет скрипты приложения
  * и возвращает удобные помощники для проверок.
+ *
+ * options.mock — макет GitHub (tests/helpers/mock-github.js); без него сеть считается недоступной.
  */
 function boot(options) {
     const settings = options || {};
+    const mock = settings.mock || null;
     const html = readSource('index.html');
 
     const dom = new JSDOM(html, {
@@ -34,6 +40,24 @@ function boot(options) {
         beforeParse(window) {
             window.scrollTo = () => {};
             window.confirm = () => settings.confirm !== false;
+
+            // Настройки и «сеть» задаются до запуска приложения
+            window.FT_CONFIG = {
+                github: {
+                    owner: 'test',
+                    repo: 'test',
+                    branch: 'main',
+                    path: 'data.json',
+                    apiBase: '/mock-api',
+                    rawBase: '/mock-raw'
+                },
+                refreshIntervalMs: 0, // в тестах фоновые таймеры не нужны
+                autoPublishDelayMs: settings.autoPublishDelayMs === undefined ? 10 : settings.autoPublishDelayMs
+            };
+
+            window.fetch = mock
+                ? mock.fetch
+                : () => Promise.reject(new Error('сеть недоступна'));
 
             if (settings.seed) {
                 Object.keys(settings.seed).forEach((key) => {
@@ -46,7 +70,9 @@ function boot(options) {
     const { window } = dom;
     const document = window.document;
 
+    window.eval(readSource('assets/js/config.js'));
     window.eval(readSource('assets/js/logic.js'));
+    window.eval(readSource('assets/js/sync.js'));
     window.eval(readSource('assets/js/app.js'));
 
     if (document.readyState === 'loading') {
@@ -61,6 +87,7 @@ function boot(options) {
         dom,
         window,
         document,
+        mock,
         $: (selector) => document.querySelector(selector),
         $$: (selector) => Array.from(document.querySelectorAll(selector)),
         id: (elementId) => document.getElementById(elementId),
@@ -71,6 +98,9 @@ function boot(options) {
             input.value = value;
             fire('input', input);
         },
+        /** Даёт завершиться промисам синхронизации */
+        settle: () => new Promise((resolve) => window.setTimeout(resolve, 0)),
+        wait: (ms) => new Promise((resolve) => window.setTimeout(resolve, ms)),
         /** Активная секция страницы */
         activeSection: () => {
             const active = document.querySelector('.page-section.active');
@@ -91,7 +121,15 @@ function boot(options) {
             const input = document.getElementById('admin-password');
             input.value = password === undefined ? 'admin' : password;
             fire('submit', document.querySelector('[data-form="login"]'));
-        }
+        },
+        /** Сохраняет токен GitHub через поле в блоке «Публикация» */
+        saveToken: (token) => {
+            const input = document.getElementById('github-token');
+            input.value = token === undefined ? 'test-token' : token;
+            fire('click', document.querySelector('[data-action="github-save-token"]'));
+        },
+        syncStatus: () => (document.getElementById('sync-status') || { textContent: '' }).textContent,
+        freshness: () => (document.getElementById('data-freshness') || { textContent: '' }).textContent
     };
 }
 
@@ -600,4 +638,213 @@ test('разметка: уникальные id, существующие ико
     // Хэш-роутинг и CSP описаны в разметке
     assert.match(html, /Content-Security-Policy/);
     assert.match(html, /script-src 'self'/);
+});
+
+/* ====================================================================== */
+/* Синхронизация с репозиторием GitHub                                   */
+/* ====================================================================== */
+
+/** Данные «из репозитория»: время в прошлом, чтобы локальные правки оказывались новее. */
+function remoteData(extraTeam) {
+    const data = L.createDefaultData();
+    data.updatedAt = '2026-09-10T09:15:00.000Z';
+    data.revision = 4;
+
+    if (extraTeam) {
+        data.teams.push({ id: 50, name: extraTeam, players: [] });
+    }
+
+    return data;
+}
+
+test('посетитель видит данные из репозитория, а не только локальную копию', async () => {
+    const mock = createMockRepository({ data: remoteData('Клуб из репозитория') });
+    const app = boot({ mock });
+
+    await app.settle();
+
+    assert.equal(app.id('stat-teams').textContent, '5', 'статистика построена по данным репозитория');
+    assert.match(app.id('teams-grid').textContent, /Клуб из репозитория/);
+    assert.match(app.id('standings-body').textContent, /Клуб из репозитория/);
+    assert.match(app.freshness(), /Данные обновлены: 10 сентября 2026/, 'в подвале указана версия данных');
+    assert.equal(app.storedData().teams.length, 5, 'копия сохранена локально (для офлайна)');
+    assert.equal(mock.state.requests.some((request) => request.url.includes('/mock-raw/')), true);
+});
+
+test('офлайн: показывается сохранённая копия, сайт продолжает работать', async () => {
+    const local = remoteData('Офлайн-клуб');
+    const app = boot({ seed: { [DATA_KEY]: JSON.stringify(local) } }); // сеть недоступна
+
+    await app.settle();
+
+    assert.equal(app.id('stat-teams').textContent, '5');
+    assert.match(app.id('teams-grid').textContent, /Офлайн-клуб/);
+    assert.match(app.freshness(), /нет связи с репозиторием/);
+    assert.match(app.syncStatus(), /Чтение из репозитория/);
+});
+
+test('публикация: токен на устройстве, отправка данных и ссылка на коммит', async () => {
+    const mock = createMockRepository({ data: remoteData() });
+    const app = boot({ mock, autoPublishDelayMs: 10000 });
+
+    await app.settle();
+    app.login();
+
+    // Без токена публиковать нельзя
+    app.click(app.actionButton('github-publish'));
+    await app.settle();
+    assert.match(app.id('toast-container').textContent, /токен/i);
+
+    app.saveToken('test-token');
+    await app.settle();
+
+    assert.equal(app.window.localStorage.getItem('ft.githubToken'), 'test-token');
+    assert.equal(app.id('github-token').value, '', 'токен не остаётся в поле ввода');
+
+    // Меняем данные и публикуем
+    app.type(app.id('new-team-name'), 'Публикуемый клуб');
+    app.submit(app.$('[data-form="add-team"]'));
+    await app.settle();
+
+    assert.match(app.syncStatus(), /неопубликованные изменения/);
+
+    app.click(app.actionButton('github-publish'));
+    await app.settle();
+
+    assert.equal(mock.state.commits.length, 1);
+    assert.match(mock.state.commits[0].message, /Публикуемый клуб/);
+    assert.equal(mock.state.commits[0].data.teams.some((team) => team.name === 'Публикуемый клуб'), true);
+    assert.equal(
+        mock.state.requests.find((request) => request.method === 'PUT').headers.authorization,
+        'Bearer test-token'
+    );
+    assert.match(app.syncStatus(), /Опубликовано/);
+    assert.match(app.id('sync-status').innerHTML, /github\.com\/test\/test\/commit\/2/);
+});
+
+test('авто-публикация: правка уходит в репозиторий без нажатия кнопки', async () => {
+    const mock = createMockRepository({ data: remoteData() });
+    const app = boot({ mock, autoPublishDelayMs: 20 });
+
+    await app.settle();
+    app.login();
+    app.saveToken('test-token');
+    await app.settle();
+
+    app.type(app.id('new-team-name'), 'Авто-клуб');
+    app.submit(app.$('[data-form="add-team"]'));
+
+    await app.wait(80);
+
+    assert.equal(mock.state.commits.length, 1, 'коммит создан автоматически');
+    assert.equal(mock.state.data.teams.some((team) => team.name === 'Авто-клуб'), true);
+    assert.match(app.syncStatus(), /Опубликовано/);
+});
+
+test('более свежая версия из репозитория не затирается устаревшей копией', async () => {
+    const mock = createMockRepository({ data: remoteData() });
+    const app = boot({ mock, autoPublishDelayMs: 10000 });
+
+    await app.settle();
+    app.login();
+    app.saveToken('test-token');
+    await app.settle();
+
+    app.type(app.id('new-team-name'), 'Локальный клуб');
+    app.submit(app.$('[data-form="add-team"]'));
+
+    // «Другое устройство» опубликовало более новую версию
+    const external = JSON.parse(JSON.stringify(mock.state.data));
+    external.updatedAt = new Date(Date.now() + 60000).toISOString();
+    external.teams.push({ id: 90, name: 'Клуб другого устройства', players: [] });
+    mock.changeExternally(external);
+
+    app.click(app.actionButton('github-publish'));
+    await app.settle();
+
+    assert.match(app.id('toast-container').textContent, /Забрать из репозитория/);
+    assert.equal(mock.state.commits.length, 0, 'публикация остановлена');
+    assert.equal(mock.state.data.teams.some((team) => team.name === 'Локальный клуб'), false, 'данные не затёрты');
+    assert.equal(mock.state.data.teams.some((team) => team.name === 'Клуб другого устройства'), true);
+});
+
+test('публикация без базовой версии не затирает появившийся файл', async () => {
+    const mock = createMockRepository({}); // файла в репозитории ещё нет
+    const app = boot({ mock, autoPublishDelayMs: 10000 });
+
+    await app.settle();
+    app.login();
+    app.saveToken('test-token');
+    await app.settle();
+
+    assert.equal(app.window.localStorage.getItem('ft.publishedAt'), null, 'публикаций с этого устройства не было');
+
+    // Пока администратор правил, файл появился (например, с другого устройства)
+    const external = remoteData('Клуб из репозитория');
+    external.updatedAt = new Date(Date.now() + 60000).toISOString();
+    mock.changeExternally(external);
+
+    app.type(app.id('new-team-name'), 'Мой клуб');
+    app.submit(app.$('[data-form="add-team"]'));
+    app.click(app.actionButton('github-publish'));
+    await app.settle();
+
+    assert.match(app.id('toast-container').textContent, /Забрать из репозитория/);
+    assert.equal(mock.state.data.teams.some((team) => team.name === 'Мой клуб'), false);
+});
+
+test('«Забрать из репозитория» обновляет данные на устройстве', async () => {
+    const mock = createMockRepository({ data: remoteData() });
+    const app = boot({ mock });
+
+    await app.settle();
+    app.login();
+
+    const updated = remoteData('Новости с турнира');
+    updated.updatedAt = new Date(Date.now() + 30000).toISOString();
+    mock.changeExternally(updated);
+
+    app.click(app.actionButton('github-pull'));
+    await app.settle();
+
+    assert.equal(app.id('stat-teams').textContent, '5');
+    assert.match(app.id('teams-grid').textContent, /Новости с турнира/);
+});
+
+test('токен живёт только в браузере устройства и удаляется по кнопке', async () => {
+    const app = boot({ mock: createMockRepository({ data: remoteData() }) });
+
+    await app.settle();
+    app.login();
+    app.saveToken('секретный-токен-123');
+    await app.settle();
+
+    assert.equal(app.window.localStorage.getItem('ft.githubToken'), 'секретный-токен-123');
+    assert.equal(readSource('index.html').includes('секретный-токен-123'), false, 'в разметке токена нет');
+    assert.equal(readSource('assets/js/app.js').includes('секретный-токен-123'), false, 'в коде токена нет');
+    assert.match(app.id('github-token').placeholder, /Токен сохранён/);
+
+    app.click(app.actionButton('github-forget-token'));
+    await app.settle();
+
+    assert.equal(app.window.localStorage.getItem('ft.githubToken'), null);
+    assert.equal(app.id('github-token').placeholder, 'github_pat_…');
+});
+
+test('кнопка «Обновить данные» подтягивает свежие результаты', async () => {
+    const mock = createMockRepository({ data: remoteData() });
+    const app = boot({ mock });
+
+    await app.settle();
+
+    const updated = remoteData();
+    updated.updatedAt = new Date(Date.now() + 30000).toISOString();
+    updated.matches.push({ id: 99, teamA: 1, teamB: 2, scoreA: 3, scoreB: 3, date: '2026-09-25', finished: true });
+    mock.changeExternally(updated);
+
+    app.click(app.actionButton('refresh-data'));
+    await app.settle();
+
+    assert.equal(app.id('stat-matches').textContent, '5');
+    assert.equal(app.id('stat-finished').textContent, '3');
 });

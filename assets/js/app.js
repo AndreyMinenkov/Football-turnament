@@ -13,7 +13,14 @@
     'use strict';
 
     var L = window.FTLogic;
+    var S = window.FTSync;
     var CONFIG = L.CONFIG;
+    var SETTINGS = window.FT_CONFIG || {};
+    var KEYS = SETTINGS.storageKeys || {
+        token: 'ft.githubToken',
+        autoPublish: 'ft.autoPublish',
+        publishedAt: 'ft.publishedAt'
+    };
 
     /** Состояние приложения (в хранилище попадает только state.data). */
     var state = {
@@ -27,6 +34,103 @@
         editingMatchId: null,
         editingPlayer: null
     };
+
+    /**
+     * Состояние синхронизации с репозиторием GitHub.
+     * Токен и метка последней публикации живут только в localStorage этого устройства.
+     */
+    /** Состояние синхронизации с репозиторием GitHub. */
+    var sync = {
+        client: null,
+        token: '',
+        sha: null,
+        publishedAt: '',
+        autoPublish: false,
+        publishing: false,
+        pullCompleted: false,
+        lastAction: '',
+        lastError: '',
+        lastPullError: '',
+        lastCommitUrl: '',
+        timer: null,
+        refreshTimer: null
+    };
+
+    /* ================================================================== */
+    /* Настройки синхронизации и токен (локально на устройстве)           */
+    /* ================================================================== */
+
+    function readStoredValue(key) {
+        try {
+            return state.storage ? state.storage.getItem(key) : null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function writeStoredValue(key, value) {
+        try {
+            if (!state.storage) {
+                return;
+            }
+
+            if (value === null || value === undefined) {
+                state.storage.removeItem(key);
+            } else {
+                state.storage.setItem(key, String(value));
+            }
+        } catch (error) {
+            // приватный режим браузера — просто игнорируем
+        }
+    }
+
+    function readSyncSettings() {
+        sync.token = readStoredValue(KEYS.token) || '';
+        sync.publishedAt = readStoredValue(KEYS.publishedAt) || '';
+
+        var storedAuto = readStoredValue(KEYS.autoPublish);
+        sync.autoPublish = storedAuto === null ? Boolean(sync.token) : storedAuto === '1';
+    }
+
+    function createSyncClient() {
+        if (!S || typeof S.createClient !== 'function') {
+            return null;
+        }
+
+        return S.createClient({
+            github: SETTINGS.github,
+            getToken: function () { return sync.token; },
+            fetch: (typeof window.fetch === 'function') ? window.fetch.bind(window) : undefined
+        });
+    }
+
+    /**
+     * Есть ли на этом устройстве изменения, которые ещё не опубликованы.
+     * Учитывается только устройство администратора: у зрителей локальные данные — просто копия.
+     */
+    function isDirty() {
+        return Boolean(state.admin && state.data.updatedAt !== sync.publishedAt);
+    }
+
+    function schedulePublish() {
+        if (!sync.autoPublish || !sync.token || !sync.client) {
+            return;
+        }
+
+        if (sync.timer) {
+            window.clearTimeout(sync.timer);
+        }
+
+        var delay = Number(SETTINGS.autoPublishDelayMs);
+        if (!Number.isFinite(delay) || delay < 0) {
+            delay = 12000;
+        }
+
+        sync.timer = window.setTimeout(function () {
+            sync.timer = null;
+            publishNow({ silent: true });
+        }, delay);
+    }
 
     /* ================================================================== */
     /* Небольшие помощники DOM                                            */
@@ -140,8 +244,19 @@
         }
     }
 
-    /** Сохранение данных + полная перерисовка + необязательное уведомление. */
-    function saveData(message) {
+    /**
+     * Сохранение данных + полная перерисовка + необязательное уведомление.
+     * options.publish === false — данные пришли из репозитория, публиковать их не нужно.
+     */
+    function saveData(message, options) {
+        var opts = options || {};
+        var isLocalChange = opts.publish !== false;
+
+        if (isLocalChange) {
+            L.touchData(state.data);
+            sync.lastAction = message || sync.lastAction;
+        }
+
         var result = L.saveToStorage(state.storage, state.data);
         state.storageAvailable = result.ok;
 
@@ -150,12 +265,343 @@
         }
 
         renderAll();
+        renderSyncStatus();
+
+        if (isLocalChange) {
+            schedulePublish();
+        }
 
         if (message) {
             toast(message, 'success');
         }
 
         return result.ok;
+    }
+
+    /* ================================================================== */
+    /* Синхронизация с репозиторием: статус и чтение                      */
+    /* ================================================================== */
+
+    /** Строка состояния синхронизации в админке и подпись «данные обновлены» в подвале. */
+    function renderSyncStatus() {
+        var freshness = $('data-freshness');
+        var statusElement = $('sync-status');
+        var updatedLabel = state.data.updatedAt ? L.formatDateTime(state.data.updatedAt) : '';
+
+        if (freshness) {
+            freshness.textContent = updatedLabel
+                ? 'Данные обновлены: ' + updatedLabel + (sync.lastPullError ? ' (нет связи с репозиторием)' : '')
+                : '';
+        }
+
+        if (!statusElement) {
+            return;
+        }
+
+        var parts = [];
+
+        if (!sync.token) {
+            parts.push('Токен не задан — изменения видны только на этом устройстве.');
+        } else if (sync.publishing) {
+            parts.push('Публикуем изменения…');
+        } else if (isDirty()) {
+            parts.push(sync.autoPublish
+                ? 'Есть неопубликованные изменения: публикация произойдёт автоматически.'
+                : 'Есть неопубликованные изменения — нажмите «Опубликовать сейчас».');
+        } else if (sync.publishedAt) {
+            parts.push('Опубликовано: ' + L.formatDateTime(sync.publishedAt) + '.');
+        } else {
+            parts.push('Всё готово к публикации.');
+        }
+
+        if (!isDirty() && updatedLabel) {
+            parts.push('Версия данных: ' + updatedLabel + '.');
+        }
+
+        if (sync.lastError) {
+            parts.push('Ошибка публикации: ' + sync.lastError);
+        } else if (sync.lastPullError) {
+            parts.push('Чтение из репозитория: ' + sync.lastPullError + '.');
+        }
+
+        statusElement.innerHTML = esc(parts.join(' ')) +
+            (sync.lastCommitUrl
+                ? ' <a class="underline hover:text-white" href="' + esc(sync.lastCommitUrl) +
+                    '" target="_blank" rel="noopener noreferrer">Открыть коммит</a>'
+                : '');
+    }
+
+    /** Заполняет поля блока «Публикация» текущими настройками (токен в разметку не подставляем). */
+    function fillSyncInputs() {
+        var checkbox = $('github-auto');
+        var tokenInput = $('github-token');
+
+        if (checkbox) {
+            checkbox.checked = sync.autoPublish;
+        }
+
+        if (tokenInput) {
+            tokenInput.value = '';
+            tokenInput.placeholder = sync.token
+                ? 'Токен сохранён — введите новый, чтобы заменить'
+                : 'github_pat_…';
+        }
+    }
+
+    /**
+     * Чтение данных из репозитория и обновление страницы.
+     * Данные репозитория считаются главными; исключение — устройство администратора,
+     * на котором есть неопубликованные изменения (их не затираем).
+     */
+    function pullFromRepository(options) {
+        var opts = options || {};
+
+        if (!sync.client) {
+            return Promise.resolve({ ok: false, error: 'Синхронизация недоступна' });
+        }
+
+        return sync.client.pull(Date.now()).then(function (result) {
+            if (!result.ok) {
+                sync.lastPullError = result.error;
+                sync.pullCompleted = true;
+                renderSyncStatus();
+
+                if (opts.verbose) {
+                    toast('Не удалось получить данные из репозитория: ' + result.error, 'error');
+                }
+
+                return result;
+            }
+
+            sync.lastPullError = '';
+
+            var keepLocal = isDirty() && !opts.force;
+
+            if (keepLocal) {
+                sync.pullCompleted = true;
+                renderSyncStatus();
+
+                if (opts.verbose) {
+                    toast('В репозитории есть версия от ' + L.formatDateTime(result.data.updatedAt) +
+                        ', но на этом устройстве есть неопубликованные изменения — они сохранены', 'info');
+                }
+
+                return result;
+            }
+
+            var decision = S.newest(state.data, result.data);
+            var changed = decision.source === 'remote' || opts.force ||
+                !state.data.updatedAt || state.data.updatedAt !== result.data.updatedAt;
+
+            if (changed) {
+                state.data = result.data;
+                sync.publishedAt = result.data.updatedAt || '';
+                writeStoredValue(KEYS.publishedAt, sync.publishedAt);
+                saveData('', { publish: false });
+
+                if (opts.verbose) {
+                    toast('Данные загружены из репозитория (версия от ' +
+                        L.formatDateTime(result.data.updatedAt) + ')', 'success');
+                }
+            } else {
+                sync.publishedAt = result.data.updatedAt || sync.publishedAt;
+                writeStoredValue(KEYS.publishedAt, sync.publishedAt);
+                renderSyncStatus();
+            }
+
+            sync.pullCompleted = true;
+            return result;
+        });
+    }
+
+    /** Публикация данных в репозиторий. */
+    function publishNow(options) {
+        var opts = options || {};
+
+        if (!sync.client) {
+            return Promise.resolve({ ok: false, error: 'Синхронизация недоступна' });
+        }
+
+        if (sync.publishing) {
+            return Promise.resolve({ ok: false, error: 'Публикация уже выполняется' });
+        }
+
+        if (!sync.token) {
+            toast('Сначала введите и сохраните токен GitHub', 'error');
+            return Promise.resolve({ ok: false, error: 'Не задан токен' });
+        }
+
+        sync.publishing = true;
+        sync.lastError = '';
+        renderSyncStatus();
+
+        return sync.client.checkAccess()
+            .then(function (access) {
+                if (!access.ok) {
+                    return { ok: false, error: access.error };
+                }
+
+                sync.sha = access.sha;
+
+                // Защита от потери данных: не публикуем устаревшую копию поверх свежей
+                if (access.exists && access.data) {
+                    var hasBaseline = Boolean(sync.publishedAt);
+                    var localIsNewer = S.timestampOf(state.data) > S.timestampOf(access.data);
+
+                    if (!hasBaseline || !localIsNewer) {
+                        return {
+                            ok: false,
+                            stale: true,
+                            error: 'В репозитории лежит версия от ' + L.formatDateTime(access.data.updatedAt) +
+                                '. Чтобы ничего не потерять, нажмите «Забрать из репозитория», ' +
+                                'а затем повторите публикацию'
+                        };
+                    }
+                }
+
+                return sync.client.publish(state.data, sync.sha, S.commitMessage(sync.lastAction));
+            })
+            .then(function (result) {
+                sync.publishing = false;
+
+                if (result && result.ok) {
+                    sync.sha = result.sha || sync.sha;
+                    sync.publishedAt = state.data.updatedAt;
+                    sync.lastCommitUrl = result.htmlUrl || sync.lastCommitUrl;
+                    writeStoredValue(KEYS.publishedAt, sync.publishedAt);
+                    renderSyncStatus();
+
+                    if (!opts.silent) {
+                        toast('Результаты опубликованы — их увидят все устройства', 'success');
+                    }
+                } else {
+                    sync.lastError = (result && result.error) || 'Не удалось опубликовать данные';
+                    sync.dirty = true;
+                    renderSyncStatus();
+                    toast(sync.lastError, 'error');
+                }
+
+                return result;
+            });
+    }
+
+    /** Автообновление данных у зрителей (и у админа, если нет неопубликованных правок). */
+    function startRefreshTimer() {
+        var interval = Number(SETTINGS.refreshIntervalMs);
+
+        if (!Number.isFinite(interval) || interval <= 0) {
+            return;
+        }
+
+        sync.refreshTimer = window.setInterval(function () {
+            if (document.visibilityState === 'hidden') {
+                return; // не тратим запросы, пока вкладка не видна
+            }
+
+            pullFromRepository();
+        }, interval);
+
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible' && !sync.timer) {
+                pullFromRepository();
+            }
+        });
+    }
+
+    /* ================================================================== */
+    /* Действия администратора в блоке «Публикация»                       */
+    /* ================================================================== */
+
+    function saveTokenFromInput() {
+        var input = $('github-token');
+        var value = input ? String(input.value).trim() : '';
+
+        if (!value) {
+            toast('Вставьте токен GitHub в поле и нажмите «Сохранить токен»', 'error');
+            return;
+        }
+
+        sync.token = value;
+        writeStoredValue(KEYS.token, value);
+
+        if (input) {
+            input.value = '';
+        }
+
+        // При первом сохранении токена включаем авто-публикацию
+        if (readStoredValue(KEYS.autoPublish) === null) {
+            sync.autoPublish = true;
+            writeStoredValue(KEYS.autoPublish, '1');
+        }
+
+        fillSyncInputs();
+        renderSyncStatus();
+        toast('Токен сохранён на этом устройстве', 'success');
+
+        sync.client.checkAccess().then(function (access) {
+            if (!access.ok) {
+                sync.lastError = access.error;
+                renderSyncStatus();
+                toast(access.error, 'error');
+                return;
+            }
+
+            sync.sha = access.sha;
+            sync.lastError = '';
+            renderSyncStatus();
+            toast(access.exists
+                ? 'Доступ к репозиторию есть'
+                : 'Доступ есть: файл данных появится при первой публикации', 'success');
+        });
+    }
+
+    function forgetToken() {
+        sync.token = '';
+        sync.sha = null;
+        sync.lastError = '';
+        sync.publishedAt = '';
+        writeStoredValue(KEYS.token, null);
+        writeStoredValue(KEYS.publishedAt, null);
+        fillSyncInputs();
+        renderSyncStatus();
+        toast('Токен удалён с этого устройства', 'info');
+    }
+
+    function checkRepositoryAccess() {
+        if (!sync.client) {
+            return;
+        }
+
+        if (!sync.token) {
+            toast('Сначала сохраните токен GitHub', 'error');
+            return;
+        }
+
+        sync.client.checkAccess().then(function (access) {
+            if (!access.ok) {
+                sync.lastError = access.error;
+                renderSyncStatus();
+                toast(access.error, 'error');
+                return;
+            }
+
+            sync.sha = access.sha;
+            sync.lastError = '';
+            renderSyncStatus();
+            toast(access.exists
+                ? 'Доступ к репозиторию есть, файл данных найден'
+                : 'Доступ есть: файл данных будет создан при первой публикации', 'success');
+        });
+    }
+
+    /** Ручное обновление данных из репозитория (кнопка «Обновить данные» и «Забрать из репозитория»). */
+    function refreshDataFromRepository() {
+        if (isDirty() && !askConfirm('На этом устройстве есть неопубликованные изменения. ' +
+            'Заменить их версией из репозитория?')) {
+            return;
+        }
+
+        pullFromRepository({ verbose: true, force: true });
     }
 
     /* ================================================================== */
@@ -678,6 +1124,8 @@
         renderAdmin();
         resetMatchForm();
         resetPlayerForm();
+        fillSyncInputs();
+        renderSyncStatus();
     }
 
     function handleAdminLogin(event) {
@@ -1296,6 +1744,18 @@
             cancelPlayerRename();
         } else if (action === 'player-delete') {
             deletePlayer(teamId, index);
+        } else if (action === 'github-save-token') {
+            saveTokenFromInput();
+        } else if (action === 'github-forget-token') {
+            forgetToken();
+        } else if (action === 'github-check') {
+            checkRepositoryAccess();
+        } else if (action === 'github-publish') {
+            publishNow();
+        } else if (action === 'github-pull') {
+            refreshDataFromRepository();
+        } else if (action === 'refresh-data') {
+            refreshDataFromRepository();
         }
     }
 
@@ -1326,6 +1786,14 @@
             renderAdminPlayers();
         } else if (target.id === 'file-import') {
             handleImportFile(event);
+        } else if (target.id === 'github-auto') {
+            sync.autoPublish = Boolean(target.checked);
+            writeStoredValue(KEYS.autoPublish, sync.autoPublish ? '1' : '0');
+            renderSyncStatus();
+
+            if (sync.autoPublish && isDirty()) {
+                schedulePublish();
+            }
         }
     }
 
@@ -1361,6 +1829,9 @@
         state.admin = readAdminSession();
         state.storageAvailable = !!state.storage;
 
+        readSyncSettings();
+        sync.client = createSyncClient();
+
         // Первый запуск: сразу фиксируем демонстрационные данные в хранилище
         if (loaded.fresh) {
             L.saveToStorage(state.storage, state.data);
@@ -1373,6 +1844,12 @@
         bindEvents();
         renderAll();
         applyRoute(parseHash(), { updateHash: false });
+        fillSyncInputs();
+        renderSyncStatus();
+
+        // Подтягиваем актуальные данные турнира из репозитория
+        pullFromRepository();
+        startRefreshTimer();
 
         /* Публичный API: нужен автотестам и удобен для отладки из консоли браузера */
         window.FTApp = {
@@ -1402,7 +1879,17 @@
                 return true;
             },
             importData: applyImport,
-            render: renderAll
+            render: renderAll,
+            /* Синхронизация с репозиторием: используется автотестами и для отладки */
+            sync: {
+                pull: pullFromRepository,
+                publish: publishNow,
+                check: checkRepositoryAccess,
+                refresh: refreshDataFromRepository,
+                isDirty: isDirty,
+                status: renderSyncStatus,
+                state: sync
+            }
         };
     }
 

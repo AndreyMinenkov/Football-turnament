@@ -86,9 +86,14 @@ function handleRequest(root) {
     };
 }
 
+/** Создаёт HTTP-обработчик, отдающий статические файлы из каталога root. */
+function createHandler(root) {
+    return handleRequest(root ? path.resolve(root) : ROOT);
+}
+
 /** Создаёт HTTP-сервер, отдающий статические файлы из каталога root. */
 function createServer(root) {
-    return http.createServer(handleRequest(root ? path.resolve(root) : ROOT));
+    return http.createServer(createHandler(root));
 }
 
 /** Запускает сервер на указанном порту (0 — любой свободный). */
@@ -107,7 +112,7 @@ function start(options) {
     return server;
 }
 
-module.exports = { createServer, start, resolvePath, ROOT };
+module.exports = { createServer, createHandler, start, resolvePath, ROOT };
 
 if (require.main === module) {
     start({ port: Number(process.env.PORT || 8080) });

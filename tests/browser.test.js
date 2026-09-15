@@ -14,6 +14,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const { createServer } = require('../tools/serve.js');
+const { createMockRepository, createMockServer } = require('./helpers/mock-github.js');
 
 const ROOT = path.resolve(__dirname, '..');
 
@@ -47,10 +48,26 @@ function findChrome() {
 const CHROME = findChrome();
 const skip = CHROME ? false : 'Chrome не найден — установите Chrome или задайте CHROME_PATH';
 
+/** Настройки, при которых сайт обращается к локальному макету GitHub, а не к настоящему. */
+const SITE_CONFIG = {
+    github: {
+        owner: 'test',
+        repo: 'test',
+        branch: 'main',
+        path: 'data.json',
+        apiBase: '/mock-api',
+        rawBase: '/mock-raw'
+    },
+    refreshIntervalMs: 0,
+    autoPublishDelayMs: 50
+};
+
 let puppeteer = null;
 let browser = null;
-let server = null;
+let mockServer = null;
+let mockRepository = null;
 let baseUrl = '';
+let mockBaseUrl = '';
 
 before(async () => {
     if (!CHROME) {
@@ -59,10 +76,18 @@ before(async () => {
 
     puppeteer = require('puppeteer-core');
 
-    server = createServer(ROOT);
+    // Сервер-макет отдаёт сайт и одновременно играет роль GitHub (пути /mock-raw и /mock-api),
+    // поэтому тесты автономны: интернет не нужен, настоящий GitHub не затрагивается.
+    // В «репозитории» изначально лежит тот же data.json, что и в проекте.
+    const mock = createMockServer(ROOT, createMockRepository({
+        data: JSON.parse(fs.readFileSync(path.join(ROOT, 'data.json'), 'utf8'))
+    }));
+    mockServer = mock.server;
+    mockRepository = mock.repository;
 
-    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-    baseUrl = 'http://127.0.0.1:' + server.address().port;
+    await new Promise((resolve) => mockServer.listen(0, '127.0.0.1', resolve));
+    mockBaseUrl = 'http://127.0.0.1:' + mockServer.address().port;
+    baseUrl = mockBaseUrl;
 
     browser = await puppeteer.launch({
         executablePath: CHROME,
@@ -76,10 +101,52 @@ after(async () => {
         await browser.close();
     }
 
-    if (server) {
-        await new Promise((resolve) => server.close(resolve));
+    if (mockServer) {
+        await new Promise((resolve) => mockServer.close(resolve));
     }
 });
+
+/** Отдельный контекст браузера = «другое устройство»: своё хранилище localStorage. */
+function createIsolatedContext() {
+    return typeof browser.createBrowserContext === 'function'
+        ? browser.createBrowserContext()
+        : browser.createIncognitoBrowserContext();
+}
+
+/**
+ * Клик по элементу с повтором: приложение перерисовывает части страницы,
+ * и в редких случаях клик приходится на момент перерисовки.
+ */
+async function clickWhenReady(page, selector, attempts) {
+    const tries = attempts || 6;
+
+    for (let attempt = 1; attempt <= tries; attempt += 1) {
+        try {
+            await page.click(selector);
+            return;
+        } catch (error) {
+            if (attempt === tries) {
+                throw error;
+            }
+
+            await new Promise((resolve) => setTimeout(resolve, 150));
+        }
+    }
+}
+
+/** Переходит по адресу и ждёт, пока приложение инициализируется и подтянет данные. */
+async function gotoApp(page, url) {
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => Boolean(window.FTApp));
+    await page.waitForFunction(() => window.FTApp.sync.state.pullCompleted);
+}
+
+/** Перезагрузка страницы с ожиданием повторной инициализации приложения. */
+async function reloadApp(page) {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => Boolean(window.FTApp));
+    await page.waitForFunction(() => window.FTApp.sync.state.pullCompleted);
+}
 
 /** Открывает страницу и собирает ошибки консоли, сбои загрузки и нарушения CSP. */
 async function openPage(options) {
@@ -98,6 +165,12 @@ async function openPage(options) {
         });
     });
 
+    // Настройки подставляются до запуска скриптов приложения.
+    // По умолчанию используется макет GitHub, поэтому тесты не зависят от интернета.
+    await page.evaluateOnNewDocument((config) => {
+        window.FT_CONFIG = config;
+    }, settings.config || SITE_CONFIG);
+
     page.on('pageerror', (error) => problems.push('Ошибка скрипта: ' + error.message));
     page.on('console', (message) => {
         if (message.type() === 'error') {
@@ -106,7 +179,7 @@ async function openPage(options) {
     });
     page.on('requestfailed', (request) => problems.push('Не загрузилось: ' + request.url()));
 
-    await page.goto(settings.url || baseUrl + '/', { waitUntil: 'networkidle0' });
+    await gotoApp(page, settings.url || baseUrl + '/');
 
     return { page, problems };
 }
@@ -172,18 +245,18 @@ test('все страницы открываются и по меню, и по �
 
     // Прямые ссылки работают так же, как навигация
     for (const [route, sectionId] of routes) {
-        await page.goto(baseUrl + '/#/' + route, { waitUntil: 'networkidle0' });
+        await gotoApp(page, baseUrl + '/#/' + route);
         assert.equal(await sectionVisible(page, sectionId), true, 'прямая ссылка #/' + route);
     }
 
-    await page.goto(baseUrl + '/#/standings', { waitUntil: 'networkidle0' });
+    await gotoApp(page, baseUrl + '/#/standings');
     assert.equal(await page.$$eval('#standings-body tr', (rows) => rows.length), 4);
     assert.match(await textOf(page, '#standings-body tr:first-child'), /Спартак/);
 
-    await page.goto(baseUrl + '/#/teams', { waitUntil: 'networkidle0' });
+    await gotoApp(page, baseUrl + '/#/teams');
     assert.equal(await page.$$eval('#teams-grid article', (cards) => cards.length), 4);
 
-    await page.goto(baseUrl + '/#/matches', { waitUntil: 'networkidle0' });
+    await gotoApp(page, baseUrl + '/#/matches');
     assert.equal(await page.$$eval('#matches-list .match-card', (cards) => cards.length), 4);
     await page.click('[data-filter="finished"]');
     assert.equal(await page.$$eval('#matches-list .match-card', (cards) => cards.length), 2);
@@ -199,7 +272,7 @@ test('админ-панель целиком в браузере: вход, ко
 
     // Начинаем с чистого хранилища
     await page.evaluate(() => window.localStorage.clear());
-    await page.reload({ waitUntil: 'networkidle0' });
+    await reloadApp(page);
 
     // Вход
     await page.click('[data-nav="admin"]');
@@ -271,7 +344,7 @@ test('админ-панель целиком в браузере: вход, ко
     assert.equal(spartakRow[9], '4', 'Спартак: победа и ничья');
 
     // Данные переживают перезагрузку страницы
-    await page.reload({ waitUntil: 'networkidle0' });
+    await reloadApp(page);
     assert.equal(await textOf(page, '#stat-teams'), '5');
     assert.equal(await textOf(page, '#stat-finished'), '3');
 
@@ -333,7 +406,11 @@ test('сайт работает из подпапки — как на GitHub Pag
     assert.equal(await textOf(page, '#stat-teams'), '4', 'данные загрузились из подпапки');
     assert.equal(await page.$$eval('#standings-body tr', (rows) => rows.length), 4);
     assert.equal(await page.$eval('body', (element) => getComputedStyle(element).backgroundColor), 'rgb(248, 249, 250)');
-    assert.deepEqual(problems, [], 'все ресурсы нашлись по относительным путям');
+
+    // Файла данных по адресу макета в этой подпапке нет — браузер сообщает об этом в консоли,
+    // это ожидаемо: приложение берёт data.json от самого сайта. Проверяем отсутствие других проблем.
+    const meaningful = problems.filter((item) => !item.includes('Failed to load resource'));
+    assert.deepEqual(meaningful, [], 'все ресурсы сайта найдены по относительным путям');
 
     await page.close();
     await new Promise((resolve) => subServer.close(resolve));
@@ -367,4 +444,68 @@ test('статические файлы отдаются с нужными ти�
 
     const robots = await (await fetch(baseUrl + '/robots.txt')).text();
     assert.match(robots, /User-agent: \*/);
+});
+
+test('синхронизация: посетитель видит данные репозитория, администратор публикует для всех', { skip }, async () => {
+    // Готовим «репозиторий»: данные турнира + один клуб из общего хранилища
+    const remote = JSON.parse(fs.readFileSync(path.join(ROOT, 'data.json'), 'utf8'));
+    remote.updatedAt = '2026-09-10T09:15:00.000Z';
+    remote.revision = 4;
+    remote.teams.push({ id: 42, name: 'Клуб из репозитория', players: [] });
+
+    mockRepository.state.data = remote;
+    mockRepository.state.sha = 'sha-1';
+    mockRepository.state.commits.length = 0;
+
+    // 1. Посетитель открывает сайт — данные приходят из репозитория, а не из его браузера
+    const visitor = await openPage({ url: mockBaseUrl + '/' });
+
+    assert.equal(await textOf(visitor.page, '#stat-teams'), '5');
+    assert.match(await textOf(visitor.page, '#teams-grid'), /Клуб из репозитория/);
+    assert.match(await textOf(visitor.page, '#data-freshness'), /Данные обновлены: 10 сентября 2026/);
+    assert.deepEqual(visitor.problems, []);
+    assert.deepEqual(await visitor.page.evaluate(() => window.__cspViolations), []);
+    await visitor.page.close();
+
+    // 2. Администратор публикует новый клуб
+    const admin = await openPage({ url: mockBaseUrl + '/' });
+
+    await clickWhenReady(admin.page, '[data-nav="admin"]');
+    await admin.page.type('#admin-password', 'admin');
+    await clickWhenReady(admin.page, '[data-form="login"] button[type="submit"]');
+    await admin.page.waitForFunction(() => window.FTApp && window.FTApp.isAdmin());
+
+    await admin.page.type('#github-token', 'test-token');
+    await clickWhenReady(admin.page, '[data-action="github-save-token"]');
+    await admin.page.waitForFunction(() => document.getElementById('github-token').placeholder.includes('сохранён'));
+
+    await admin.page.type('#new-team-name', 'Опубликовано из админки');
+    await clickWhenReady(admin.page, '[data-form="add-team"] button[type="submit"]');
+    await admin.page.waitForFunction(() => document.querySelectorAll('#admin-teams-body tr').length === 6);
+
+    await clickWhenReady(admin.page, '[data-action="github-publish"]');
+    await admin.page.waitForFunction(() => document.getElementById('sync-status').textContent.includes('Опубликовано'));
+
+    assert.equal(mockRepository.state.commits.length, 1, 'создан один коммит');
+    assert.equal(mockRepository.state.data.teams.length, 6);
+    assert.equal(mockRepository.state.data.teams.some((team) => team.name === 'Опубликовано из админки'), true);
+    assert.deepEqual(admin.problems, []);
+    await admin.page.close();
+
+    // 3. «Другое устройство»: чистое хранилище — данные должны прийти из репозитория
+    const otherContext = await createIsolatedContext();
+    const otherPage = await otherContext.newPage();
+
+    await otherPage.evaluateOnNewDocument((config) => {
+        window.FT_CONFIG = config;
+    }, SITE_CONFIG);
+
+    await gotoApp(otherPage, mockBaseUrl + '/');
+
+    assert.equal(await textOf(otherPage, '#stat-teams'), '6', 'другое устройство получило опубликованные данные');
+    assert.match(await textOf(otherPage, '#teams-grid'), /Опубликовано из админки/);
+    assert.match(await textOf(otherPage, '#data-freshness'), /10 сентября 2026|сентября 2026/);
+
+    await otherPage.close();
+    await otherContext.close();
 });
