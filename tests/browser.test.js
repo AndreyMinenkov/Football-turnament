@@ -489,6 +489,19 @@ test('синхронизация: посетитель видит данные �
     assert.equal(mockRepository.state.commits.length, 1, 'создан один коммит');
     assert.equal(mockRepository.state.data.teams.length, 6);
     assert.equal(mockRepository.state.data.teams.some((team) => team.name === 'Опубликовано из админки'), true);
+
+    // Повторное нажатие «Опубликовать» без изменений не должно показывать ошибку
+    // (раньше в такой ситуации появлялось тревожное сообщение про «версию из репозитория»)
+    await clickWhenReady(admin.page, '[data-action="github-publish"]');
+    await admin.page.waitForFunction(
+        () => !document.getElementById('sync-status').textContent.includes('Публикуем')
+    );
+
+    const repeatStatus = await textOf(admin.page, '#sync-status');
+    assert.equal(repeatStatus.includes('Не удалось опубликовать'), false, 'ошибки нет');
+    assert.match(repeatStatus, /Опубликовано/);
+    assert.equal(mockRepository.state.commits.length, 1, 'лишний коммит не создан');
+
     assert.deepEqual(admin.problems, []);
     await admin.page.close();
 

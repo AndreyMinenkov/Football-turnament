@@ -37,5 +37,7 @@ window.FT_CONFIG.autoPublishDelayMs = window.FT_CONFIG.autoPublishDelayMs === un
 window.FT_CONFIG.storageKeys = Object.assign({
     token: 'ft.githubToken',        // токен GitHub (только на устройстве администратора)
     autoPublish: 'ft.autoPublish',  // «публиковать автоматически»
-    publishedAt: 'ft.publishedAt'   // метка последней успешной публикации
+    publishedAt: 'ft.publishedAt',  // метка последней успешной публикации
+    localBackup: 'ft.localBackup',  // копия данных перед заменой версией из репозитория
+    localEdits: 'ft.localEdits'     // отметка «на устройстве есть неопубликованные правки»
 }, window.FT_CONFIG.storageKeys || {});

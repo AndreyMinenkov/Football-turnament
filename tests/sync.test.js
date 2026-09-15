@@ -131,6 +131,22 @@ test('newest: сравнение локальной и удалённой вер
     assert.equal(S.newest(sameTimeNewer, { updatedAt: sameTimeNewer.updatedAt, revision: 2 }).source, 'local');
 });
 
+test('documentsEqual: сравнивает содержимое документов', () => {
+    const first = sampleData();
+    const second = JSON.parse(JSON.stringify(first));
+
+    assert.equal(S.documentsEqual(first, second), true);
+    assert.equal(S.documentsEqual(first, null), false);
+    assert.equal(S.documentsEqual(null, null), false);
+
+    second.revision += 1;
+    assert.equal(S.documentsEqual(first, second), false, 'изменение версии — уже другой документ');
+
+    const third = JSON.parse(JSON.stringify(first));
+    third.teams.push({ id: 99, name: 'Новая', players: [] });
+    assert.equal(S.documentsEqual(first, third), false);
+});
+
 test('parseContentsResponse и buildUpdateRequest', () => {
     assert.equal(S.parseContentsResponse(null).ok, false);
     assert.equal(S.parseContentsResponse({}).ok, false);

@@ -339,6 +339,33 @@ test('данные старой версии сайта загружаются �
     assert.deepEqual(L.getStats(loaded.data), { teams: 4, matches: 4, players: 9, finished: 2, upcoming: 2, goals: 5 });
 });
 
+test('нормализация: пустой турнир — допустимое состояние, а не «битые данные»', () => {
+    // Именно такая ситуация была в реальном репозитории: администратор удалил все команды.
+    // Раньше приложение подменяло пустой список демонстрационными командами.
+    const result = L.normalizeData({
+        version: 2,
+        revision: 5,
+        updatedAt: '2026-09-15T10:08:34.710Z',
+        teams: [],
+        matches: []
+    });
+
+    assert.equal(result.data.teams.length, 0);
+    assert.equal(result.data.matches.length, 0);
+    assert.equal(result.data.revision, 5, 'версия документа сохраняется');
+    assert.equal(result.data.updatedAt, '2026-09-15T10:08:34.710Z');
+    assert.equal(result.repaired, false, 'это не повреждение данных');
+
+    // Приложение работает с пустым турниром без ошибок
+    assert.deepEqual(L.getStats(result.data), {
+        teams: 0, matches: 0, players: 0, finished: 0, upcoming: 0, goals: 0
+    });
+    assert.deepEqual(L.computeStandings(result.data.teams, result.data.matches), []);
+
+    // А настоящие повреждения по-прежнему заменяются демонстрационными данными
+    assert.equal(L.normalizeData({ teams: 'нет', matches: [] }).data.teams.length, 4);
+});
+
 test('serializeData и parseImport: экспорт, импорт и проверка формата', () => {
     const data = L.createDefaultData();
     const text = L.serializeData(data);

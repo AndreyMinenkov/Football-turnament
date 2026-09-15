@@ -19,12 +19,16 @@
     var KEYS = SETTINGS.storageKeys || {
         token: 'ft.githubToken',
         autoPublish: 'ft.autoPublish',
-        publishedAt: 'ft.publishedAt'
+        publishedAt: 'ft.publishedAt',
+        localBackup: 'ft.localBackup',
+        localEdits: 'ft.localEdits'
     };
 
     /** Состояние приложения (в хранилище попадает только state.data). */
     var state = {
         data: L.createDefaultData(),
+        dataFromStorage: false,
+        initialized: false,
         storage: null,
         storageAvailable: true,
         admin: false,
@@ -105,11 +109,24 @@
     }
 
     /**
-     * Есть ли на этом устройстве изменения, которые ещё не опубликованы.
-     * Учитывается только устройство администратора: у зрителей локальные данные — просто копия.
+     * Есть ли на устройстве правки, которые ещё не попали в репозиторий.
+     * Отметка ставится при каждом изменении и снимается после публикации
+     * или после загрузки версии из репозитория.
      */
+    function hasUnpublishedEdits() {
+        return Boolean(readStoredValue(KEYS.localEdits));
+    }
+
+    function markUnpublishedEdits() {
+        writeStoredValue(KEYS.localEdits, state.data.updatedAt || new Date().toISOString());
+    }
+
+    function clearUnpublishedEdits() {
+        writeStoredValue(KEYS.localEdits, null);
+    }
+
     function isDirty() {
-        return Boolean(state.admin && state.data.updatedAt !== sync.publishedAt);
+        return Boolean(state.admin && hasUnpublishedEdits());
     }
 
     function schedulePublish() {
@@ -255,10 +272,12 @@
         if (isLocalChange) {
             L.touchData(state.data);
             sync.lastAction = message || sync.lastAction;
+            markUnpublishedEdits();
         }
 
         var result = L.saveToStorage(state.storage, state.data);
         state.storageAvailable = result.ok;
+        state.dataFromStorage = true;
 
         if (!result.ok && result.error) {
             toast(result.error, 'error');
@@ -286,12 +305,17 @@
     function renderSyncStatus() {
         var freshness = $('data-freshness');
         var statusElement = $('sync-status');
+        var restoreButton = $('github-restore');
         var updatedLabel = state.data.updatedAt ? L.formatDateTime(state.data.updatedAt) : '';
 
         if (freshness) {
             freshness.textContent = updatedLabel
                 ? 'Данные обновлены: ' + updatedLabel + (sync.lastPullError ? ' (нет связи с репозиторием)' : '')
                 : '';
+        }
+
+        if (restoreButton) {
+            restoreButton.hidden = !hasLocalBackup();
         }
 
         if (!statusElement) {
@@ -304,6 +328,8 @@
             parts.push('Токен не задан — изменения видны только на этом устройстве.');
         } else if (sync.publishing) {
             parts.push('Публикуем изменения…');
+        } else if (sync.lastError) {
+            parts.push('Не удалось опубликовать: ' + sync.lastError + '.');
         } else if (isDirty()) {
             parts.push(sync.autoPublish
                 ? 'Есть неопубликованные изменения: публикация произойдёт автоматически.'
@@ -314,13 +340,11 @@
             parts.push('Всё готово к публикации.');
         }
 
-        if (!isDirty() && updatedLabel) {
+        if (!sync.lastError && updatedLabel) {
             parts.push('Версия данных: ' + updatedLabel + '.');
         }
 
-        if (sync.lastError) {
-            parts.push('Ошибка публикации: ' + sync.lastError);
-        } else if (sync.lastPullError) {
+        if (sync.lastPullError) {
             parts.push('Чтение из репозитория: ' + sync.lastPullError + '.');
         }
 
@@ -348,10 +372,52 @@
         }
     }
 
+    /* --- Резервная копия перед заменой данных версией из репозитория --- */
+
+    function saveLocalBackup(data) {
+        try {
+            writeStoredValue(KEYS.localBackup, JSON.stringify(data));
+            return true;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    function hasLocalBackup() {
+        return Boolean(readStoredValue(KEYS.localBackup));
+    }
+
+    /** Возвращает данные из резервной копии (если она есть) как локальные изменения. */
+    function restoreLocalBackup() {
+        var raw = readStoredValue(KEYS.localBackup);
+
+        if (!raw) {
+            toast('Резервной копии нет', 'error');
+            return;
+        }
+
+        var parsed = L.parseImport(raw);
+
+        if (!parsed.ok) {
+            toast('Не удалось прочитать резервную копию: ' + parsed.error, 'error');
+            return;
+        }
+
+        if (!askConfirm('Вернуть данные из резервной копии (' + L.formatDateTime(parsed.data.updatedAt) + ')?\n' +
+                'Текущие данные будут заменены. После проверки нажмите «Опубликовать сейчас».')) {
+            return;
+        }
+
+        state.data = parsed.data;
+        L.touchData(state.data); // чтобы копия считалась новым изменением и её можно было опубликовать
+        saveData('Данные восстановлены из резервной копии');
+    }
+
     /**
      * Чтение данных из репозитория и обновление страницы.
-     * Данные репозитория считаются главными; исключение — устройство администратора,
-     * на котором есть неопубликованные изменения (их не затираем).
+     *
+     * Данные репозитория считаются главными, но если на устройстве администратора есть
+     * отличающиеся данные, приложение сначала спросит и сохранит копию — потерять правки нельзя.
      */
     function pullFromRepository(options) {
         var opts = options || {};
@@ -374,42 +440,71 @@
             }
 
             sync.lastPullError = '';
+            sync.pullCompleted = true;
 
-            var keepLocal = isDirty() && !opts.force;
-
-            if (keepLocal) {
-                sync.pullCompleted = true;
+            // Данные уже совпадают — ничего не меняем
+            if (S.documentsEqual(state.data, result.data)) {
+                sync.publishedAt = result.data.updatedAt || sync.publishedAt;
+                sync.lastError = '';
+                clearUnpublishedEdits();
+                writeStoredValue(KEYS.publishedAt, sync.publishedAt);
                 renderSyncStatus();
 
                 if (opts.verbose) {
-                    toast('В репозитории есть версия от ' + L.formatDateTime(result.data.updatedAt) +
-                        ', но на этом устройстве есть неопубликованные изменения — они сохранены', 'info');
+                    toast('Данные уже совпадают с версией в репозитории', 'info');
                 }
 
                 return result;
             }
 
-            var decision = S.newest(state.data, result.data);
-            var changed = decision.source === 'remote' || opts.force ||
-                !state.data.updatedAt || state.data.updatedAt !== result.data.updatedAt;
+            // Фоновые обновления не трогают неопубликованные правки
+            var localTime = S.timestampOf(state.data);
+            var remoteTime = S.timestampOf(result.data);
 
-            if (changed) {
-                state.data = result.data;
-                sync.publishedAt = result.data.updatedAt || '';
-                writeStoredValue(KEYS.publishedAt, sync.publishedAt);
-                saveData('', { publish: false });
+            // Данные считаются «работой пользователя», если на устройстве есть отметка
+            // о неопубликованных правках либо из хранилища загружена версия новее репозитория.
+            // Только что созданные демонстрационные данные к таким не относятся.
+            var localNewer = localTime > remoteTime;
+            var localIsWork = hasUnpublishedEdits() || (state.dataFromStorage && localNewer);
 
-                if (opts.verbose) {
-                    toast('Данные загружены из репозитория (версия от ' +
-                        L.formatDateTime(result.data.updatedAt) + ')', 'success');
-                }
-            } else {
-                sync.publishedAt = result.data.updatedAt || sync.publishedAt;
-                writeStoredValue(KEYS.publishedAt, sync.publishedAt);
+            // 1. На устройстве есть неопубликованная работа — фоновая синхронизация её не трогает
+            if (localIsWork && !opts.force) {
                 renderSyncStatus();
+                return result;
             }
 
-            sync.pullCompleted = true;
+            // 2. Пользователь сам просит «забрать из репозитория»: если есть работа,
+            //    сначала спрашиваем и сохраняем копию
+            if (localIsWork && !opts.confirmed &&
+                !askConfirm('На этом устройстве есть данные, которых нет в репозитории' +
+                    (hasUnpublishedEdits() ? ' (похоже, они ещё не опубликованы)' : '') + '.\n' +
+                    'Заменить их версией из репозитория (от ' + L.formatDateTime(result.data.updatedAt) + ')?\n' +
+                    'Копия текущих данных будет сохранена: её можно вернуть кнопкой «Восстановить копию».')) {
+                renderSyncStatus();
+
+                if (opts.verbose) {
+                    toast('Данные оставлены без изменений — их можно опубликовать кнопкой «Опубликовать сейчас»', 'info');
+                }
+
+                return result;
+            }
+
+            // 3. Остальные случаи (устаревшая копия, первый визит) — спокойно заменяем
+            var backupSaved = state.admin && localIsWork ? saveLocalBackup(state.data) : false;
+
+            state.data = result.data;
+            state.dataFromStorage = true;
+            clearUnpublishedEdits();
+            sync.publishedAt = result.data.updatedAt || '';
+            sync.lastError = '';
+            writeStoredValue(KEYS.publishedAt, sync.publishedAt);
+            saveData('', { publish: false });
+
+            if (opts.verbose) {
+                toast('Данные загружены из репозитория (версия от ' + L.formatDateTime(result.data.updatedAt) + ')' +
+                    (backupSaved ? '. Копия прежних данных сохранена' : ''), 'success');
+            }
+
             return result;
         });
     }
@@ -443,20 +538,49 @@
 
                 sync.sha = access.sha;
 
-                // Защита от потери данных: не публикуем устаревшую копию поверх свежей
-                if (access.exists && access.data) {
-                    var hasBaseline = Boolean(sync.publishedAt);
-                    var localIsNewer = S.timestampOf(state.data) > S.timestampOf(access.data);
+                // Файла в репозитории ещё нет — просто создаём его
+                if (!access.exists || !access.data) {
+                    return sync.client.publish(state.data, sync.sha, S.commitMessage(sync.lastAction));
+                }
 
-                    if (!hasBaseline || !localIsNewer) {
-                        return {
-                            ok: false,
-                            stale: true,
-                            error: 'В репозитории лежит версия от ' + L.formatDateTime(access.data.updatedAt) +
-                                '. Чтобы ничего не потерять, нажмите «Забрать из репозитория», ' +
-                                'а затем повторите публикацию'
-                        };
-                    }
+                // Данные уже совпадают с репозиторием — публиковать нечего (частая ситуация
+                // после авто-публикации или повторного нажатия кнопки, и это не ошибка)
+                if (S.documentsEqual(state.data, access.data)) {
+                    return { ok: true, unchanged: true, sha: access.sha };
+                }
+
+                var localTime = S.timestampOf(state.data);
+                var remoteTime = S.timestampOf(access.data);
+
+                // С этого устройства ещё не публиковали: нет базовой версии для сравнения
+                if (!sync.publishedAt) {
+                    return {
+                        ok: false,
+                        stale: true,
+                        error: 'с этого устройства данные ещё не публиковались. ' +
+                            'Нажмите «Забрать из репозитория», чтобы получить текущую версию, ' +
+                            'и повторите изменения'
+                    };
+                }
+
+                // В репозитории более новая версия — публикация остановлена
+                if (localTime < remoteTime) {
+                    return {
+                        ok: false,
+                        stale: true,
+                        error: 'в репозитории версия новее вашей (от ' + L.formatDateTime(access.data.updatedAt) +
+                            '). Нажмите «Забрать из репозитория», проверьте данные и повторите публикацию'
+                    };
+                }
+
+                // Одинаковое время, но разное содержимое: спрашиваем, что важнее
+                if (localTime === remoteTime &&
+                    !askConfirm('В репозитории версия с тем же временем, но другим содержимым.\n' +
+                        'Опубликовать вашу версию поверх?')) {
+                    return {
+                        ok: false,
+                        error: 'публикация отменена: сначала проверьте данные кнопкой «Забрать из репозитория»'
+                    };
                 }
 
                 return sync.client.publish(state.data, sync.sha, S.commitMessage(sync.lastAction));
@@ -465,20 +589,37 @@
                 sync.publishing = false;
 
                 if (result && result.ok) {
+                    // Публикация прошла (или публиковать было нечего): отложенная
+                    // авто-публикация больше не нужна
+                    if (sync.timer) {
+                        window.clearTimeout(sync.timer);
+                        sync.timer = null;
+                    }
+
                     sync.sha = result.sha || sync.sha;
                     sync.publishedAt = state.data.updatedAt;
-                    sync.lastCommitUrl = result.htmlUrl || sync.lastCommitUrl;
+                    sync.lastError = '';
+                    clearUnpublishedEdits();
                     writeStoredValue(KEYS.publishedAt, sync.publishedAt);
-                    renderSyncStatus();
 
-                    if (!opts.silent) {
-                        toast('Результаты опубликованы — их увидят все устройства', 'success');
+                    if (result.unchanged) {
+                        renderSyncStatus();
+
+                        if (!opts.silent) {
+                            toast('Изменений нет: данные в репозитории уже совпадают', 'info');
+                        }
+                    } else {
+                        sync.lastCommitUrl = result.htmlUrl || sync.lastCommitUrl;
+                        renderSyncStatus();
+
+                        if (!opts.silent) {
+                            toast('Результаты опубликованы — их увидят все устройства', 'success');
+                        }
                     }
                 } else {
-                    sync.lastError = (result && result.error) || 'Не удалось опубликовать данные';
-                    sync.dirty = true;
+                    sync.lastError = (result && result.error) || 'не удалось опубликовать данные';
                     renderSyncStatus();
-                    toast(sync.lastError, 'error');
+                    toast('Публикация не выполнена: ' + sync.lastError, 'error');
                 }
 
                 return result;
@@ -594,13 +735,9 @@
         });
     }
 
-    /** Ручное обновление данных из репозитория (кнопка «Обновить данные» и «Забрать из репозитория»). */
+    /** Ручное обновление данных из репозитория (кнопки «Обновить данные» и «Забрать из репозитория»). */
     function refreshDataFromRepository() {
-        if (isDirty() && !askConfirm('На этом устройстве есть неопубликованные изменения. ' +
-            'Заменить их версией из репозитория?')) {
-            return;
-        }
-
+        // Если данные отличаются, приложение само спросит подтверждение и сохранит копию
         pullFromRepository({ verbose: true, force: true });
     }
 
@@ -1754,6 +1891,8 @@
             publishNow();
         } else if (action === 'github-pull') {
             refreshDataFromRepository();
+        } else if (action === 'github-restore-backup') {
+            restoreLocalBackup();
         } else if (action === 'refresh-data') {
             refreshDataFromRepository();
         }
@@ -1821,11 +1960,18 @@
     /* ================================================================== */
 
     function init() {
+        // Защита от повторного запуска: обработчики событий не должны дублироваться
+        if (state.initialized) {
+            return;
+        }
+
+        state.initialized = true;
         state.storage = getStorage('local');
 
         var loaded = L.loadFromStorage(state.storage);
 
         state.data = loaded.data;
+        state.dataFromStorage = !loaded.fresh;
         state.admin = readAdminSession();
         state.storageAvailable = !!state.storage;
 

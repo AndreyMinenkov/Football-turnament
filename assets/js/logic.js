@@ -588,6 +588,15 @@
             };
         }
 
+        var updatedAt = (typeof raw.updatedAt === 'string' && !Number.isNaN(Date.parse(raw.updatedAt)))
+            ? raw.updatedAt
+            : new Date().toISOString();
+        var revision = toInt(raw.revision);
+
+        if (revision === null || revision < 1) {
+            revision = 1;
+        }
+
         var repaired = false;
         var usedTeamIds = [];
         var usedTeamNames = [];
@@ -634,10 +643,17 @@
         });
 
         if (!teams.length) {
+            // Пустой турнир — допустимое состояние (например, все команды удалили)
             return {
-                data: createDefaultData(),
-                repaired: true,
-                reason: 'Список команд пуст — загружены демонстрационные данные'
+                data: {
+                    version: CONFIG.dataVersion,
+                    revision: revision,
+                    updatedAt: updatedAt,
+                    teams: [],
+                    matches: []
+                },
+                repaired: repaired,
+                reason: repaired ? 'Часть данных была исправлена автоматически' : ''
             };
         }
 
@@ -697,15 +713,6 @@
                 finished: bothScoresValid
             });
         });
-
-        var updatedAt = (typeof raw.updatedAt === 'string' && !Number.isNaN(Date.parse(raw.updatedAt)))
-            ? raw.updatedAt
-            : new Date().toISOString();
-        var revision = toInt(raw.revision);
-
-        if (revision === null || revision < 1) {
-            revision = 1;
-        }
 
         return {
             data: {

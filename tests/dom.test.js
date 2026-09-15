@@ -14,6 +14,7 @@ const { JSDOM } = require('jsdom');
 
 const ROOT = path.resolve(__dirname, '..');
 const DATA_KEY = 'footballTournamentData';
+const EDITS_KEY = 'ft.localEdits';
 
 const L = require('../assets/js/logic.js');
 const { createMockRepository } = require('./helpers/mock-github.js');
@@ -847,4 +848,107 @@ test('кнопка «Обновить данные» подтягивает св
 
     assert.equal(app.id('stat-matches').textContent, '5');
     assert.equal(app.id('stat-finished').textContent, '3');
+});
+
+test('повторная публикация без изменений не показывает ошибку', async () => {
+    const mock = createMockRepository({ data: remoteData() });
+    const app = boot({ mock, autoPublishDelayMs: 10000 });
+
+    await app.settle();
+    app.login();
+    app.saveToken('test-token');
+    await app.settle();
+
+    app.type(app.id('new-team-name'), 'Первый клуб');
+    app.submit(app.$('[data-form="add-team"]'));
+    await app.settle();
+
+    app.click(app.actionButton('github-publish'));
+    await app.settle();
+
+    assert.equal(mock.state.commits.length, 1);
+    assert.match(app.syncStatus(), /Опубликовано/);
+
+    // Нажимаем «Опубликовать» ещё раз, ничего не меняя:
+    // раньше это показывало тревожную ошибку про «версию из репозитория»
+    app.click(app.actionButton('github-publish'));
+    await app.settle();
+
+    assert.equal(mock.state.commits.length, 1, 'лишний коммит не создаётся');
+    assert.equal(app.syncStatus().includes('Не удалось опубликовать'), false, 'ошибки нет');
+    assert.match(app.syncStatus(), /Опубликовано/);
+    assert.match(app.id('toast-container').textContent, /Изменений нет/);
+});
+
+test('ручная публикация отменяет отложенную авто-публикацию', async () => {
+    const mock = createMockRepository({ data: remoteData() });
+    const app = boot({ mock, autoPublishDelayMs: 40 });
+
+    await app.settle();
+    app.login();
+    app.saveToken('test-token');
+    await app.settle();
+
+    app.type(app.id('new-team-name'), 'Клуб');
+    app.submit(app.$('[data-form="add-team"]'));
+
+    app.click(app.actionButton('github-publish'));
+    await app.settle();
+
+    await app.wait(140); // дольше, чем задержка авто-публикации
+
+    assert.equal(mock.state.commits.length, 1, 'второй коммит не появился');
+    assert.equal(app.syncStatus().includes('Не удалось опубликовать'), false);
+});
+
+test('локально более новые данные защищены от замены (подтверждение и копия)', async () => {
+    const local = remoteData();
+    local.updatedAt = '2026-09-12T10:00:00.000Z';
+    local.teams = []; // как будто команды удалили и не успели опубликовать
+
+    const mock = createMockRepository({ data: remoteData('Клуб из репозитория') });
+    const app = boot({
+        mock,
+        confirm: false,
+        seed: { [DATA_KEY]: JSON.stringify(local), [EDITS_KEY]: local.updatedAt }
+    });
+
+    await app.settle();
+
+    // Даже фоновая синхронизация при загрузке не затирает более новые данные устройства
+    assert.equal(app.id('stat-teams').textContent, '0');
+    assert.equal(app.id('teams-grid').textContent.includes('Клуб из репозитория'), false);
+
+    app.login();
+    app.click(app.actionButton('github-pull'));
+    await app.settle();
+
+    assert.equal(app.id('teams-grid').textContent.includes('Клуб из репозитория'), false, 'данные сохранены');
+    assert.equal(app.window.localStorage.getItem('ft.localBackup'), null, 'копия не создавалась');
+    assert.ok(app.window.localStorage.getItem(EDITS_KEY), 'правки по-прежнему помечены как неопубликованные');
+});
+
+test('подтверждённая замена сохраняет копию, и её можно вернуть', async () => {
+    const local = remoteData();
+    local.updatedAt = '2026-09-12T10:00:00.000Z';
+
+    const mock = createMockRepository({ data: remoteData('Клуб из репозитория') });
+    // подтверждение разрешено; отметка о неопубликованных правках — как после реального изменения
+    const app = boot({ mock, seed: { [DATA_KEY]: JSON.stringify(local), [EDITS_KEY]: local.updatedAt } });
+
+    await app.settle();
+    app.login();
+
+    app.click(app.actionButton('github-pull'));
+    await app.settle();
+
+    assert.match(app.id('teams-grid').textContent, /Клуб из репозитория/, 'пришла версия из репозитория');
+    assert.ok(app.window.localStorage.getItem('ft.localBackup'), 'копия прежних данных сохранена');
+    assert.equal(app.id('github-restore').hidden, false, 'кнопка восстановления показана');
+
+    app.click(app.actionButton('github-restore-backup'));
+    await app.settle();
+
+    assert.equal(app.id('teams-grid').textContent.includes('Клуб из репозитория'), false, 'прежние данные вернулись');
+    assert.ok(app.window.localStorage.getItem(EDITS_KEY), 'восстановленные данные помечены как неопубликованные');
 });

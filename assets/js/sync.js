@@ -76,6 +76,15 @@
         return config;
     }
 
+    /** Сравнение двух документов турнира по содержимому (ключи всегда в одном порядке). */
+    function documentsEqual(a, b) {
+        if (!a || !b) {
+            return false;
+        }
+
+        return JSON.stringify(a) === JSON.stringify(b);
+    }
+
     function configReady(config) {
         return Boolean(config.owner && config.repo && config.branch && config.path);
     }
@@ -483,6 +492,7 @@
         timestampOf: timestampOf,
         revisionOf: revisionOf,
         newest: newest,
+        documentsEqual: documentsEqual,
         parseContentsResponse: parseContentsResponse,
         buildUpdateRequest: buildUpdateRequest,
         commitMessage: commitMessage,
