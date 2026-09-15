@@ -359,6 +359,7 @@
 
     .table-wrap {
         overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
     }
 
     /* --- Карточка матча --- */
@@ -649,5 +650,84 @@
 
     .toast {
         animation: none;
+    }
+}
+
+/* ==================================================================== */
+/* Смартфоны: ширина экрана до 640px (до брейкпоинта sm у Tailwind)     */
+/* Правила намеренно вне @layer, чтобы переопределять компоненты.       */
+/* ==================================================================== */
+
+@media (max-width: 640px) {
+    /* 16px в полях ввода: иначе iOS Safari приближает страницу при фокусе */
+    .input-field,
+    .admin-input,
+    .admin-score {
+        font-size: 16px;
+    }
+
+    /* Кнопки удобного для пальца размера */
+    .btn {
+        min-height: 46px;
+    }
+
+    .btn-sm {
+        min-height: 40px;
+    }
+
+    /* Компактнее таблицы — меньше горизонтальной прокрутки */
+    .data-table {
+        font-size: 0.8125rem;
+    }
+
+    .data-table th,
+    .data-table td {
+        padding: 0.5rem 0.625rem;
+    }
+
+    /* Компактнее карточки, бейджи и статистика */
+    .card-header {
+        padding: 0.875rem;
+    }
+
+    .match-card {
+        padding: 0.75rem;
+    }
+
+    .team-badge {
+        width: 36px;
+        height: 36px;
+    }
+
+    .team-badge-sm {
+        width: 30px;
+        height: 30px;
+        font-size: 0.6875rem;
+    }
+
+    .stat-box {
+        padding: 1rem 0.75rem;
+    }
+
+    .stat-value {
+        font-size: 1.75rem;
+    }
+
+    .admin-card {
+        padding: 1rem;
+    }
+
+    /* Уведомления — во всю ширину экрана, а не в угол */
+    .toast-wrap {
+        left: 0.75rem;
+        right: 0.75rem;
+        bottom: 0.75rem;
+        max-width: none;
+    }
+
+    /* Учитываем «вырезы» и скругления экрана смартфона */
+    body {
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
     }
 }

@@ -29,7 +29,7 @@
 
     <!-- Стили: файл Tailwind собирается заранее (npm run build:css), шрифт Roboto — локальный.
          ?v= — метка версии: после обновления сайта браузеры сразу берут свежие файлы, а не кэш. -->
-    <link rel="stylesheet" href="assets/css/tailwind.css?v=3">
+    <link rel="stylesheet" href="assets/css/tailwind.css?v=4">
 </head>
 <body class="font-sans bg-dark-50 text-dark-900 antialiased">
 
@@ -119,8 +119,8 @@
                 <button type="button" class="flex items-center gap-3 text-left" data-action="navigate" data-page="home">
                     <span class="team-badge badge-color-1">FT</span>
                     <span>
-                        <span class="block font-bold text-lg leading-tight">ФУТБОЛЬНЫЙ ТУРНИР</span>
-                        <span class="block text-sm text-dark-600">Летний Кубок 2026</span>
+                        <span class="block font-bold text-base sm:text-lg leading-tight">ФУТБОЛЬНЫЙ ТУРНИР</span>
+                        <span class="block text-xs sm:text-sm text-dark-600">Летний Кубок 2026</span>
                     </span>
                 </button>
 
@@ -166,10 +166,10 @@
         <!-- ============================ ГЛАВНАЯ ============================ -->
         <section id="page-home" class="page-section active">
             <div class="card mb-6 overflow-hidden">
-                <div class="bg-gradient-to-r from-primary-700 to-primary-900 p-8 text-white">
+                <div class="bg-gradient-to-r from-primary-700 to-primary-900 p-6 sm:p-8 text-white">
                     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                         <div>
-                            <h1 class="text-3xl font-bold mb-1">Летний Кубок 2026</h1>
+                            <h1 class="text-2xl sm:text-3xl font-bold mb-1">Летний Кубок 2026</h1>
                             <p class="text-primary-100">Турнирная таблица, составы команд и результаты матчей</p>
                         </div>
                         <div class="flex flex-wrap gap-3">
@@ -248,7 +248,7 @@
                                 <th class="num" scope="col" title="Поражения">П</th>
                                 <th class="num" scope="col" title="Забитые и пропущенные мячи">Мячи</th>
                                 <th class="num" scope="col" title="Разница мячей">РМ</th>
-                                <th class="num" scope="col" title="Последние пять матчей">Форма</th>
+                                <th class="num hidden sm:table-cell" scope="col" title="Последние пять матчей">Форма</th>
                                 <th class="num" scope="col" title="Очки">О</th>
                             </tr>
                         </thead>
@@ -323,7 +323,7 @@
         <!-- ========================= АДМИН-ПАНЕЛЬ ========================= -->
         <section id="page-admin-dashboard" class="page-section admin-panel -mx-4 px-4 py-6 md:rounded">
             <div class="flex flex-wrap justify-between items-center gap-3 mb-6">
-                <h2 class="font-bold text-xl text-white flex items-center gap-2">
+                <h2 class="font-bold text-lg sm:text-xl text-white flex items-center gap-2">
                     <svg class="icon-lg" aria-hidden="true"><use href="#i-cog"></use></svg>Панель управления
                 </h2>
                 <div class="flex flex-wrap gap-2">
@@ -551,9 +551,9 @@
 
     <!-- Логика: настройки → чистая логика → синхронизация с репозиторием → слой DOM.
          ?v= — метка версии, чтобы после обновления сайта не использовался старый кэш. -->
-    <script src="assets/js/config.js?v=3" defer></script>
-    <script src="assets/js/logic.js?v=3" defer></script>
-    <script src="assets/js/sync.js?v=3" defer></script>
-    <script src="assets/js/app.js?v=3" defer></script>
+    <script src="assets/js/config.js?v=4" defer></script>
+    <script src="assets/js/logic.js?v=4" defer></script>
+    <script src="assets/js/sync.js?v=4" defer></script>
+    <script src="assets/js/app.js?v=4" defer></script>
 </body>
 </html>

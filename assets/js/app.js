@@ -850,12 +850,12 @@
 
         return '' +
             '<article class="match-card ' + (match.finished ? 'finished' : 'upcoming') + '">' +
-                '<div class="flex items-center gap-3">' +
+                '<div class="flex items-center gap-2 sm:gap-3">' +
                     '<div class="flex items-center gap-2 flex-1 min-w-0">' +
                         teamBadge(teamA, true) +
                         '<span class="font-medium truncate">' + esc(teamA ? teamA.name : 'Команда удалена') + '</span>' +
                     '</div>' +
-                    '<div class="px-2 text-center">' +
+                    '<div class="px-1.5 sm:px-2 text-center">' +
                         (match.finished
                             ? '<span class="score-display">' + match.scoreA + ' : ' + match.scoreB + '</span>'
                             : '<span class="text-dark-500 text-sm">против</span>') +
@@ -894,7 +894,7 @@
                     '<td class="num text-red-700">' + row.losses + '</td>' +
                     '<td class="num">' + row.goalsFor + '–' + row.goalsAgainst + '</td>' +
                     '<td class="num font-medium ' + diffClass + '">' + (row.goalDiff > 0 ? '+' : '') + row.goalDiff + '</td>' +
-                    '<td class="num">' + formDots(row.form) + '</td>' +
+                    '<td class="num hidden sm:table-cell">' + formDots(row.form) + '</td>' +
                     '<td class="num font-bold text-primary-900">' + row.points + '</td>' +
                 '</tr>';
         }).join('');
