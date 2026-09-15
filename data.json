@@ -1,7 +1,32 @@
 {
   "version": 2,
-  "revision": 5,
-  "updatedAt": "2026-09-15T10:08:34.710Z",
-  "teams": [],
-  "matches": []
+  "revision": 10,
+  "updatedAt": "2026-09-15T10:30:34.655Z",
+  "teams": [
+    {
+      "id": 1,
+      "name": "Добрик",
+      "players": [
+        "Сергей Сергеевич"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Оля",
+      "players": [
+        "Ольга Юрьевна"
+      ]
+    }
+  ],
+  "matches": [
+    {
+      "id": 1,
+      "teamA": 1,
+      "teamB": 2,
+      "scoreA": 1,
+      "scoreB": 5,
+      "date": "2026-09-15",
+      "finished": true
+    }
+  ]
 }
