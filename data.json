@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "revision": 14,
-  "updatedAt": "2026-09-15T10:40:59.188Z",
+  "revision": 15,
+  "updatedAt": "2026-09-15T10:41:06.695Z",
   "teams": [
     {
       "id": 1,
@@ -27,7 +27,9 @@
     {
       "id": 4,
       "name": "Андрей",
-      "players": []
+      "players": [
+        "Андрей"
+      ]
     }
   ],
   "matches": [
