@@ -540,10 +540,6 @@ test('админка: импорт JSON, понятные ошибки и сбр
     assert.equal(app.storedData().teams.length, 4);
     assert.equal(app.storedData().matches.length, 4);
     assert.equal(app.id('stat-teams').textContent, '4');
-
-    // Экспорт: даже если браузер не даёт сохранить файл, приложение сообщает об этом и не падает
-    app.click(app.actionButton('export-data'));
-    assert.ok(app.id('toast-container').textContent.length > 0, 'пользователь получает сообщение');
 });
 
 test('битые данные в хранилище: предупреждение и рабочий интерфейс', () => {

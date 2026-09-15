@@ -1804,7 +1804,7 @@
     }
 
     /* ================================================================== */
-    /* Резервное копирование: сброс, экспорт и импорт JSON                */
+    /* Сброс к демонстрационным данным                                    */
     /* ================================================================== */
 
     function resetData() {
@@ -1820,57 +1820,12 @@
         saveData('Загружены демонстрационные данные');
     }
 
-    function exportData() {
-        try {
-            var blob = new Blob([L.serializeData(state.data)], { type: 'application/json' });
-            var url = URL.createObjectURL(blob);
-            var link = document.createElement('a');
-
-            link.href = url;
-            link.download = 'football-tournament-' + L.todayISO() + '.json';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-            toast('Файл с данными выгружен', 'success');
-        } catch (error) {
-            toast('Браузер не позволил выгрузить файл — скопируйте данные вручную', 'error');
-        }
-    }
-
-    function triggerImport() {
-        var input = $('file-import');
-
-        if (!input) {
-            return;
-        }
-
-        input.value = '';
-        input.click();
-    }
-
-    function handleImportFile(event) {
-        var input = event.target;
-        var file = input.files && input.files[0];
-
-        if (!file) {
-            return;
-        }
-
-        var reader = new FileReader();
-
-        reader.onload = function () {
-            applyImport(String(reader.result));
-        };
-
-        reader.onerror = function () {
-            toast('Не удалось прочитать файл', 'error');
-        };
-
-        reader.readAsText(file);
-    }
-
-    /** Применяет данные из JSON-строки (используется импортом из файла). */
+    /**
+     * Применяет данные из JSON-строки.
+     * Публичного экспорта/импорта файлов в интерфейсе нет: резервные копии — это история
+     * коммитов в репозитории, а копия перед заменой сохраняется кнопкой «Восстановить копию».
+     * Функция остаётся как аварийный путь восстановления (FTApp.importData в консоли браузера).
+     */
     function applyImport(text) {
         var result = L.parseImport(text);
 
@@ -1930,10 +1885,6 @@
             handleLogout();
         } else if (action === 'reset-data') {
             resetData();
-        } else if (action === 'export-data') {
-            exportData();
-        } else if (action === 'import-trigger') {
-            triggerImport();
         } else if (action === 'team-rename') {
             startTeamRename(id);
         } else if (action === 'team-save') {
@@ -2006,8 +1957,6 @@
         if (target.id === 'player-team-select') {
             state.editingPlayer = null;
             renderAdminPlayers();
-        } else if (target.id === 'file-import') {
-            handleImportFile(event);
         } else if (target.id === 'github-auto') {
             sync.autoPublish = Boolean(target.checked);
             writeStoredValue(KEYS.autoPublish, sync.autoPublish ? '1' : '0');

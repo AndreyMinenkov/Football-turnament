@@ -378,20 +378,6 @@ test('мобильное меню открывается и закрываетс
     await page.close();
 });
 
-test('экспорт данных запускается в реальном браузере', { skip }, async () => {
-    const { page } = await openPage();
-
-    await page.click('[data-nav="admin"]');
-    await page.type('#admin-password', 'admin');
-    await page.click('[data-form="login"] button[type="submit"]');
-
-    await page.click('[data-action="export-data"]');
-    await page.waitForFunction(() => document.querySelector('#toast-container').textContent.includes('выгружен'));
-    assert.match(await textOf(page, '#toast-container'), /выгружен/);
-
-    await page.close();
-});
-
 test('сайт работает из подпапки — как на GitHub Pages для репозитория', { skip }, async () => {
     const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ft-pages-'));
     fs.symlinkSync(ROOT, path.join(tempRoot, 'repo'), 'dir');
