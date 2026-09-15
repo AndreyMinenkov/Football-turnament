@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "revision": 12,
-  "updatedAt": "2026-09-15T10:40:31.287Z",
+  "revision": 14,
+  "updatedAt": "2026-09-15T10:40:59.188Z",
   "teams": [
     {
       "id": 1,
@@ -20,7 +20,9 @@
     {
       "id": 3,
       "name": "Лена",
-      "players": []
+      "players": [
+        "Лена"
+      ]
     },
     {
       "id": 4,
@@ -36,6 +38,15 @@
       "scoreA": 1,
       "scoreB": 5,
       "date": "2026-09-15",
+      "finished": true
+    },
+    {
+      "id": 2,
+      "teamA": 3,
+      "teamB": 4,
+      "date": "2026-09-15",
+      "scoreA": 1,
+      "scoreB": 2,
       "finished": true
     }
   ]
