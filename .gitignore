@@ -1,0 +1,25 @@
+# Зависимости
+node_modules/
+vendor/
+__pycache__/
+*.py[cod]
+
+# Виртуальные окружения
+.venv/
+venv/
+
+# Окружение и секреты
+.env
+.env.local
+
+# Сборка и логи
+dist/
+build/
+.next/
+*.log
+
+# Системное
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
