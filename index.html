@@ -29,7 +29,7 @@
 
     <!-- Стили: файл Tailwind собирается заранее (npm run build:css), шрифт Roboto — локальный.
          ?v= — метка версии: после обновления сайта браузеры сразу берут свежие файлы, а не кэш. -->
-    <link rel="stylesheet" href="assets/css/tailwind.css?v=5">
+    <link rel="stylesheet" href="assets/css/tailwind.css?v=6">
 </head>
 <body class="font-sans bg-dark-50 text-dark-900 antialiased">
 
@@ -124,7 +124,9 @@
                     </span>
                 </button>
 
-                <nav class="hidden md:flex items-center" aria-label="Основная навигация">
+                <!-- Полное меню показываем с 1024px: на 768–1023px пять пунктов
+                     не помещаются и шапка вылезала за край экрана -->
+                <nav class="hidden lg:flex items-center" aria-label="Основная навигация">
                     <button type="button" class="nav-link" data-nav="home" data-action="navigate" data-page="home">
                         <svg class="icon" aria-hidden="true"><use href="#i-home"></use></svg>Главная
                     </button>
@@ -142,14 +144,14 @@
                     </button>
                 </nav>
 
-                <button type="button" class="md:hidden p-2 text-dark-700" data-action="toggle-menu"
+                <button type="button" class="lg:hidden p-2 text-dark-700" data-action="toggle-menu"
                         aria-label="Открыть меню" aria-controls="mobile-menu">
                     <svg class="icon-lg" aria-hidden="true"><use href="#i-menu"></use></svg>
                 </button>
             </div>
         </div>
 
-        <nav id="mobile-menu" class="hidden md:hidden bg-white border-t" aria-label="Мобильная навигация">
+        <nav id="mobile-menu" class="hidden lg:hidden bg-white border-t" aria-label="Мобильная навигация">
             <button type="button" class="nav-link w-full" data-nav="home" data-action="navigate" data-page="home">Главная</button>
             <button type="button" class="nav-link w-full" data-nav="standings" data-action="navigate" data-page="standings">Таблица</button>
             <button type="button" class="nav-link w-full" data-nav="teams" data-action="navigate" data-page="teams">Команды</button>
@@ -557,9 +559,9 @@
 
     <!-- Логика: настройки → чистая логика → синхронизация с репозиторием → слой DOM.
          ?v= — метка версии, чтобы после обновления сайта не использовался старый кэш. -->
-    <script src="assets/js/config.js?v=5" defer></script>
-    <script src="assets/js/logic.js?v=5" defer></script>
-    <script src="assets/js/sync.js?v=5" defer></script>
-    <script src="assets/js/app.js?v=5" defer></script>
+    <script src="assets/js/config.js?v=6" defer></script>
+    <script src="assets/js/logic.js?v=6" defer></script>
+    <script src="assets/js/sync.js?v=6" defer></script>
+    <script src="assets/js/app.js?v=6" defer></script>
 </body>
 </html>

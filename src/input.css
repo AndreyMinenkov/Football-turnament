@@ -306,6 +306,25 @@
         display: none;
     }
 
+    /* --- Поля с нативным управлением (дата, время, число) ---
+       В браузерах у них собственная минимальная ширина, поэтому внутри сетки
+       такое поле легко растягивает колонку и вылезает за пределы карточки.
+       Разрешаем им сжиматься и не выходить за границы контейнера. */
+    input[type="date"],
+    input[type="time"],
+    input[type="datetime-local"],
+    input[type="month"],
+    input[type="week"],
+    input[type="number"] {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    /* Колонки форм не растягиваются под содержимое полей */
+    [data-form] > div {
+        min-width: 0;
+    }
+
     /* --- Таблицы --- */
     .data-table {
         width: 100%;
@@ -487,6 +506,10 @@
     .admin-panel {
         background: #202124;
         color: #e8eaed;
+        /* Нативные элементы (календарь поля даты, стрелки числовых полей,
+           выпадающие списки) рисуются в тёмной теме — иначе поле даты
+           выглядит светлым пятном поверх тёмной карточки */
+        color-scheme: dark;
     }
 
     .admin-card {
@@ -859,5 +882,27 @@
     body {
         padding-left: env(safe-area-inset-left);
         padding-right: env(safe-area-inset-right);
+    }
+}
+
+/* ==================================================================== */
+/* iOS / iPadOS Safari: поле даты игнорирует заданную ширину, пока не    */
+/* отключено нативное оформление, — из-за этого оно вылезает за границы  */
+/* карточки. Условие (-webkit-touch-callout) отбирает именно iOS,        */
+/* поэтому на Android и на компьютерах нативный вид поля сохраняется.   */
+/* ==================================================================== */
+
+@supports (-webkit-touch-callout: none) {
+    input[type="date"],
+    input[type="time"],
+    input[type="datetime-local"],
+    input[type="month"],
+    input[type="week"] {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        text-align: left;
     }
 }
