@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "revision": 10,
-  "updatedAt": "2026-09-15T10:30:34.655Z",
+  "revision": 12,
+  "updatedAt": "2026-09-15T10:40:31.287Z",
   "teams": [
     {
       "id": 1,
@@ -16,6 +16,16 @@
       "players": [
         "Ольга Юрьевна"
       ]
+    },
+    {
+      "id": 3,
+      "name": "Лена",
+      "players": []
+    },
+    {
+      "id": 4,
+      "name": "Андрей",
+      "players": []
     }
   ],
   "matches": [
