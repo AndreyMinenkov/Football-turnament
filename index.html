@@ -27,8 +27,9 @@
     <link rel="icon" href="assets/favicon.ico" sizes="32x32">
     <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 
-    <!-- Стили: файл Tailwind собирается заранее (npm run build:css), шрифт Roboto — локальный -->
-    <link rel="stylesheet" href="assets/css/tailwind.css">
+    <!-- Стили: файл Tailwind собирается заранее (npm run build:css), шрифт Roboto — локальный.
+         ?v= — метка версии: после обновления сайта браузеры сразу берут свежие файлы, а не кэш. -->
+    <link rel="stylesheet" href="assets/css/tailwind.css?v=3">
 </head>
 <body class="font-sans bg-dark-50 text-dark-900 antialiased">
 
@@ -548,10 +549,11 @@
     <!-- Всплывающие уведомления -->
     <div id="toast-container" class="toast-wrap" aria-live="polite" aria-atomic="false"></div>
 
-    <!-- Логика: настройки → чистая логика → синхронизация с репозиторием → слой DOM -->
-    <script src="assets/js/config.js" defer></script>
-    <script src="assets/js/logic.js" defer></script>
-    <script src="assets/js/sync.js" defer></script>
-    <script src="assets/js/app.js" defer></script>
+    <!-- Логика: настройки → чистая логика → синхронизация с репозиторием → слой DOM.
+         ?v= — метка версии, чтобы после обновления сайта не использовался старый кэш. -->
+    <script src="assets/js/config.js?v=3" defer></script>
+    <script src="assets/js/logic.js?v=3" defer></script>
+    <script src="assets/js/sync.js?v=3" defer></script>
+    <script src="assets/js/app.js?v=3" defer></script>
 </body>
 </html>
