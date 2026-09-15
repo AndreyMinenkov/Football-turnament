@@ -336,6 +336,12 @@
                     <button type="button" class="btn btn-sm btn-ghost" data-action="reset-data">
                         <svg class="icon" aria-hidden="true"><use href="#i-refresh"></use></svg>Демо-данные
                     </button>
+                    <button type="button" class="btn btn-sm btn-ghost" id="sync-indicator" data-action="open-settings"
+                            aria-live="polite" title="Открыть настройки публикации"></button>
+                    <button type="button" class="btn btn-sm btn-ghost" id="admin-settings-button" data-action="toggle-settings"
+                            aria-expanded="false" aria-controls="admin-settings">
+                        <svg class="icon" aria-hidden="true"><use href="#i-cog"></use></svg>Настройки
+                    </button>
                     <button type="button" class="btn btn-sm btn-danger" data-action="logout">
                         <svg class="icon" aria-hidden="true"><use href="#i-logout"></use></svg>Выйти
                     </button>
@@ -346,8 +352,9 @@
 
             <div id="admin-summary" class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6"></div>
 
-            <!-- Публикация данных в репозиторий (чтобы результаты видели все устройства) -->
-            <div class="admin-card mb-4">
+            <!-- Настройки: публикация данных в репозиторий (открывается кнопкой «Настройки») -->
+            <div id="admin-settings" class="mb-4" hidden>
+            <div class="admin-card">
                 <h3 class="admin-title">
                     <svg class="icon" aria-hidden="true"><use href="#i-upload"></use></svg>Публикация результатов для всех устройств
                 </h3>
@@ -392,6 +399,7 @@
                 </div>
 
                 <p id="sync-status" class="admin-hint mt-3" role="status" aria-live="polite"></p>
+            </div>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">

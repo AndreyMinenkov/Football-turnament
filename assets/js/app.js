@@ -29,6 +29,7 @@
         data: L.createDefaultData(),
         dataFromStorage: false,
         initialized: false,
+        settingsOpen: false,
         storage: null,
         storageAvailable: true,
         admin: false,
@@ -301,6 +302,82 @@
     /* Синхронизация с репозиторием: статус и чтение                      */
     /* ================================================================== */
 
+    /**
+     * Показывает или скрывает блок настроек публикации.
+     * Блок живёт в шапке админки за кнопкой «Настройки», а короткий статус
+     * публикации всегда виден рядом с ней (см. renderSyncIndicator).
+     */
+    function renderAdminSettings() {
+        var panel = $('admin-settings');
+        var button = $('admin-settings-button');
+
+        if (panel) {
+            panel.hidden = !state.settingsOpen;
+        }
+
+        if (button) {
+            button.setAttribute('aria-expanded', state.settingsOpen ? 'true' : 'false');
+            button.classList.toggle('btn-primary', state.settingsOpen);
+            button.classList.toggle('btn-ghost', !state.settingsOpen);
+        }
+
+        if (state.settingsOpen) {
+            fillSyncInputs();
+        }
+
+        // Обновляет содержимое панели и короткий статус в шапке
+        renderSyncStatus();
+    }
+
+    function toggleAdminSettings() {
+        state.settingsOpen = !state.settingsOpen;
+        renderAdminSettings();
+    }
+
+    function openAdminSettings() {
+        if (!state.settingsOpen) {
+            state.settingsOpen = true;
+        }
+
+        renderAdminSettings();
+    }
+
+    /** Короткая строка о публикации в шапке админки: видна даже с закрытыми настройками. */
+    function renderSyncIndicator() {
+        var indicator = $('sync-indicator');
+
+        if (!indicator) {
+            return;
+        }
+
+        var text;
+        var iconName = 'info';
+
+        if (!sync.token) {
+            text = 'Публикация не настроена';
+            iconName = 'alert';
+        } else if (sync.publishing) {
+            text = 'Публикуем…';
+            iconName = 'upload';
+        } else if (sync.lastError) {
+            text = 'Ошибка публикации';
+            iconName = 'alert';
+        } else if (isDirty()) {
+            text = 'Есть неопубликованные изменения';
+            iconName = 'alert';
+        } else if (sync.publishedAt) {
+            var published = new Date(sync.publishedAt);
+            text = 'Опубликовано в ' + String(published.getHours()).padStart(2, '0') + ':' +
+                String(published.getMinutes()).padStart(2, '0');
+            iconName = 'check';
+        } else {
+            text = 'Готово к публикации';
+        }
+
+        indicator.innerHTML = icon(iconName) + '<span>' + esc(text) + '</span>';
+        indicator.setAttribute('title', text + ' — открыть настройки публикации');
+    }
+
     /** Строка состояния синхронизации в админке и подпись «данные обновлены» в подвале. */
     function renderSyncStatus() {
         var freshness = $('data-freshness');
@@ -353,6 +430,8 @@
                 ? ' <a class="underline hover:text-white" href="' + esc(sync.lastCommitUrl) +
                     '" target="_blank" rel="noopener noreferrer">Открыть коммит</a>'
                 : '');
+
+        renderSyncIndicator();
     }
 
     /** Заполняет поля блока «Публикация» текущими настройками (токен в разметку не подставляем). */
@@ -1261,8 +1340,7 @@
         renderAdmin();
         resetMatchForm();
         resetPlayerForm();
-        fillSyncInputs();
-        renderSyncStatus();
+        renderAdminSettings();
     }
 
     function handleAdminLogin(event) {
@@ -1290,6 +1368,7 @@
 
     function handleLogout() {
         state.admin = false;
+        state.settingsOpen = false;
         state.editingTeamId = null;
         state.editingMatchId = null;
         state.editingPlayer = null;
@@ -1893,6 +1972,10 @@
             refreshDataFromRepository();
         } else if (action === 'github-restore-backup') {
             restoreLocalBackup();
+        } else if (action === 'toggle-settings') {
+            toggleAdminSettings();
+        } else if (action === 'open-settings') {
+            openAdminSettings();
         } else if (action === 'refresh-data') {
             refreshDataFromRepository();
         }
