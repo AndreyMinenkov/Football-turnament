@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="Летний Кубок 2026">
+    <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#2e7d32"/>
+            <stop offset="1" stop-color="#1b5e20"/>
+        </linearGradient>
+    </defs>
+    <rect width="1200" height="630" fill="url(#bg)"/>
+    <circle cx="1010" cy="150" r="190" fill="#ffffff" opacity="0.08"/>
+    <circle cx="180" cy="560" r="150" fill="#ffffff" opacity="0.06"/>
+
+    <g transform="translate(96 96)">
+        <rect width="104" height="104" rx="22" fill="#ffffff"/>
+        <circle cx="52" cy="52" r="34" fill="#1b5e20"/>
+        <path d="M52 30 71 44l-7.2 22.6H40.2L33 44z" fill="#ffffff"/>
+    </g>
+
+    <text x="96" y="330" font-family="DejaVu Sans, Verdana, sans-serif" font-size="86" font-weight="bold" fill="#ffffff">Летний Кубок 2026</text>
+    <text x="96" y="410" font-family="DejaVu Sans, Verdana, sans-serif" font-size="42" fill="#c8e6c9">Турнирная таблица · Команды · Матчи</text>
+    <rect x="96" y="460" width="300" height="6" rx="3" fill="#81c784"/>
+    <text x="96" y="540" font-family="DejaVu Sans, Verdana, sans-serif" font-size="34" fill="#e8f5e9">Футбольный турнир · сезон 2026</text>
+</svg>

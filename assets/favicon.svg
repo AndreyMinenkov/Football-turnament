@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Футбольный турнир">
+    <rect width="64" height="64" rx="13" fill="#1b5e20"/>
+    <circle cx="32" cy="32" r="20" fill="#ffffff"/>
+    <path d="M32 19.5 43.5 28l-4.4 13.8H24.9L20.5 28z" fill="#1b5e20"/>
+    <path d="M32 11.5v8M15.8 24l4.9 3.7M48.2 24l-4.9 3.7M21.6 53.5l4.6-13M42.4 53.5l-4.6-13"
+          fill="none" stroke="#1b5e20" stroke-width="2.8" stroke-linecap="round"/>
+</svg>

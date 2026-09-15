@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Страница не найдена — Футбольный турнир 2026</title>
+    <meta name="robots" content="noindex">
+    <meta name="theme-color" content="#1b5e20">
+    <style>
+        /* Страница полностью автономна: один файл, без внешних ресурсов. */
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            font-family: Roboto, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+            background: #f8f9fa;
+            color: #202124;
+        }
+
+        .card {
+            background: #fff;
+            border: 1px solid #dadce0;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+            padding: 40px 32px;
+            max-width: 520px;
+            text-align: center;
+        }
+
+        .badge {
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 20px;
+            border-radius: 8px;
+            background: #1b5e20;
+            color: #fff;
+            font-weight: 700;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        h1 { font-size: 22px; margin: 0 0 12px; }
+
+        p { margin: 0 0 20px; color: #5f6368; line-height: 1.5; }
+
+        a.button {
+            display: inline-block;
+            background: #1b5e20;
+            color: #fff;
+            text-decoration: none;
+            font-weight: 500;
+            padding: 12px 20px;
+            border-radius: 4px;
+        }
+
+        a.button:hover { background: #2e7d32; }
+    </style>
+</head>
+<body>
+    <main class="card">
+        <div class="badge">404</div>
+        <h1>Страница не найдена</h1>
+        <p>
+            Возможно, адрес указан с ошибкой или страница была перемещена.
+            Вернитесь на главную — там турнирная таблица, команды и матчи.
+        </p>
+        <a class="button" id="home-link" href="/">На главную</a>
+    </main>
+
+    <script>
+        /*
+         * На GitHub Pages для репозитория сайт живёт в подпапке (user.github.io/repo/),
+         * поэтому абсолютная ссылка «/» ведёт не туда. Определяем базовый путь:
+         * для адресов вида *.github.io/<репозиторий>/ он равен «/<репозиторий>/».
+         */
+        (function () {
+            var host = window.location.hostname;
+            var segments = window.location.pathname.split('/').filter(Boolean);
+            var base = '/';
+
+            if (/\.github\.io$/i.test(host) && segments.length > 0) {
+                base = '/' + segments[0] + '/';
+            }
+
+            document.getElementById('home-link').setAttribute('href', base);
+        })();
+    </script>
+</body>
+</html>

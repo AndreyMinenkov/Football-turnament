@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+    <!-- Content Security Policy: сайт не подключает внешние ресурсы, поэтому политика строгая.
+         Тот же заголовок дополнительно отдаётся файлом _headers на Netlify/Cloudflare Pages. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+    <title>Футбольный турнир 2026 — таблица, команды, матчи</title>
+
+    <!-- SEO и предпросмотр в соцсетях -->
+    <meta name="description" content="Летний Кубок 2026: турнирная таблица, состав команд, расписание и результаты матчей. Данные обновляются через панель администратора.">
+    <meta name="theme-color" content="#1b5e20">
+    <meta name="color-scheme" content="light">
+    <link rel="canonical" href="./">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="ru_RU">
+    <meta property="og:site_name" content="Футбольный турнир 2026">
+    <meta property="og:title" content="Летний Кубок 2026 — футбольный турнир">
+    <meta property="og:description" content="Турнирная таблица, команды, расписание и результаты матчей Летнего Кубка 2026.">
+    <meta property="og:image" content="assets/og-image.png">
+    <meta name="twitter:card" content="summary_large_image">
+
+    <!-- Иконки -->
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="assets/favicon.ico" sizes="32x32">
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+
+    <!-- Стили: файл Tailwind собирается заранее (npm run build:css), шрифт Roboto — локальный -->
+    <link rel="stylesheet" href="assets/css/tailwind.css">
+</head>
+<body class="font-sans bg-dark-50 text-dark-900 antialiased">
+
+    <a class="skip-link" href="#main-content">Перейти к содержимому</a>
+
+    <!-- Инлайновый спрайт иконок: без внешних библиотек, работает офлайн -->
+    <svg xmlns="http://www.w3.org/2000/svg" class="hidden" aria-hidden="true" focusable="false">
+        <symbol id="i-home" viewBox="0 0 24 24">
+            <path d="M3 11.5 12 4l9 7.5V20a1 1 0 0 1-1 1h-4.5v-6h-7v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="i-trophy" viewBox="0 0 24 24">
+            <path d="M8 4h8v4a4 4 0 0 1-8 0z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M8 5H6v1.5A2.5 2.5 0 0 0 8.5 9M16 5h2v1.5A2.5 2.5 0 0 1 15.5 9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M12 12v4M9 20h6M10 16h4l.5 4h-5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="i-users" viewBox="0 0 24 24">
+            <circle cx="9" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/>
+            <path d="M3 20a6 6 0 0 1 12 0M16.5 6.8a2.7 2.7 0 0 1 0 5.4M17.5 20a5.5 5.5 0 0 0-1.6-3.9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="i-calendar" viewBox="0 0 24 24">
+            <rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/>
+            <path d="M8 3v4M16 3v4M3 11h18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="i-cog" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/>
+            <path d="M12 3v2.6M12 18.4V21M3 12h2.6M18.4 12H21M5.6 5.6l1.9 1.9M16.5 16.5l1.9 1.9M18.4 5.6l-1.9 1.9M7.5 16.5l-1.9 1.9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="i-menu" viewBox="0 0 24 24">
+            <path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="i-search" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.7"/>
+            <path d="M16 16l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="i-plus" viewBox="0 0 24 24">
+            <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="i-pencil" viewBox="0 0 24 24">
+            <path d="M4 20l.9-4.2L16 4.7a2.4 2.4 0 0 1 3.4 3.4L8.3 19.1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M14.4 6.4l3.2 3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="i-trash" viewBox="0 0 24 24">
+            <path d="M4 7h16M9.5 7V4h5v3M6.5 7l1 13h9l1-13M10 11v6M14 11v6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="i-check" viewBox="0 0 24 24">
+            <path d="M5 13l4 4 10-10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="i-clock" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.7"/>
+            <path d="M12 7.2V12l3.4 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="i-alert" viewBox="0 0 24 24">
+            <path d="M12 4.5l8.5 15h-17z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+            <path d="M12 10v3.6M12 16.5h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="i-info" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.7"/>
+            <path d="M12 11v6M12 7.8h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="i-download" viewBox="0 0 24 24">
+            <path d="M12 4v10M8 11l4 4 4-4M4 20h16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="i-upload" viewBox="0 0 24 24">
+            <path d="M12 16V5M8 9l4-4 4 4M4 20h16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="i-refresh" viewBox="0 0 24 24">
+            <path d="M20 12a8 8 0 1 1-2.4-5.7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            <path d="M20 4.5V9h-4.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="i-undo" viewBox="0 0 24 24">
+            <path d="M4 10a8 8 0 1 1 5 10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            <path d="M4 5v5h5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="i-logout" viewBox="0 0 24 24">
+            <path d="M14 5H6a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8M14 12h7M18 9l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="i-lock" viewBox="0 0 24 24">
+            <rect x="5" y="10" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/>
+            <path d="M8.5 10V8a3.5 3.5 0 0 1 7 0v2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </symbol>
+    </svg>
+
+    <!-- Шапка -->
+    <header class="bg-white border-b sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between items-center h-16 gap-4">
+                <button type="button" class="flex items-center gap-3 text-left" data-action="navigate" data-page="home">
+                    <span class="team-badge badge-color-1">FT</span>
+                    <span>
+                        <span class="block font-bold text-lg leading-tight">ФУТБОЛЬНЫЙ ТУРНИР</span>
+                        <span class="block text-sm text-dark-600">Летний Кубок 2026</span>
+                    </span>
+                </button>
+
+                <nav class="hidden md:flex items-center" aria-label="Основная навигация">
+                    <button type="button" class="nav-link" data-nav="home" data-action="navigate" data-page="home">
+                        <svg class="icon" aria-hidden="true"><use href="#i-home"></use></svg>Главная
+                    </button>
+                    <button type="button" class="nav-link" data-nav="standings" data-action="navigate" data-page="standings">
+                        <svg class="icon" aria-hidden="true"><use href="#i-trophy"></use></svg>Таблица
+                    </button>
+                    <button type="button" class="nav-link" data-nav="teams" data-action="navigate" data-page="teams">
+                        <svg class="icon" aria-hidden="true"><use href="#i-users"></use></svg>Команды
+                    </button>
+                    <button type="button" class="nav-link" data-nav="matches" data-action="navigate" data-page="matches">
+                        <svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg>Матчи
+                    </button>
+                    <button type="button" class="nav-link" data-nav="admin" data-action="navigate" data-page="admin">
+                        <svg class="icon" aria-hidden="true"><use href="#i-cog"></use></svg>Админ
+                    </button>
+                </nav>
+
+                <button type="button" class="md:hidden p-2 text-dark-700" data-action="toggle-menu"
+                        aria-label="Открыть меню" aria-controls="mobile-menu">
+                    <svg class="icon-lg" aria-hidden="true"><use href="#i-menu"></use></svg>
+                </button>
+            </div>
+        </div>
+
+        <nav id="mobile-menu" class="hidden md:hidden bg-white border-t" aria-label="Мобильная навигация">
+            <button type="button" class="nav-link w-full" data-nav="home" data-action="navigate" data-page="home">Главная</button>
+            <button type="button" class="nav-link w-full" data-nav="standings" data-action="navigate" data-page="standings">Таблица</button>
+            <button type="button" class="nav-link w-full" data-nav="teams" data-action="navigate" data-page="teams">Команды</button>
+            <button type="button" class="nav-link w-full" data-nav="matches" data-action="navigate" data-page="matches">Матчи</button>
+            <button type="button" class="nav-link w-full" data-nav="admin" data-action="navigate" data-page="admin">Админ-панель</button>
+        </nav>
+    </header>
+
+    <main id="main-content" class="max-w-7xl mx-auto px-4 py-6 min-h-screen">
+
+        <!-- Сообщение о восстановлении данных после сбоя -->
+        <div id="data-warning" class="banner banner-warning mb-6" hidden></div>
+
+        <!-- ============================ ГЛАВНАЯ ============================ -->
+        <section id="page-home" class="page-section active">
+            <div class="card mb-6 overflow-hidden">
+                <div class="bg-gradient-to-r from-primary-700 to-primary-900 p-8 text-white">
+                    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div>
+                            <h1 class="text-3xl font-bold mb-1">Летний Кубок 2026</h1>
+                            <p class="text-primary-100">Турнирная таблица, составы команд и результаты матчей</p>
+                        </div>
+                        <div class="flex flex-wrap gap-3">
+                            <button type="button" class="btn bg-white text-primary-800 hover:bg-primary-50"
+                                    data-action="navigate" data-page="standings">Таблица</button>
+                            <button type="button" class="btn bg-primary-600 text-white hover:bg-primary-500"
+                                    data-action="navigate" data-page="matches">Матчи</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div class="stat-box">
+                    <div class="stat-value" id="stat-teams">0</div>
+                    <div class="stat-label">Команд</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="stat-matches">0</div>
+                    <div class="stat-label">Матчей</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="stat-players">0</div>
+                    <div class="stat-label">Игроков</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="stat-finished">0</div>
+                    <div class="stat-label">Завершено</div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="section-title flex items-center gap-2">
+                            <svg class="icon text-primary-700" aria-hidden="true"><use href="#i-check"></use></svg>Последние результаты
+                        </h2>
+                        <button type="button" class="btn btn-sm btn-secondary" data-action="navigate" data-page="matches">Все матчи</button>
+                    </div>
+                    <div id="latest-results" class="p-4 space-y-3"></div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="section-title flex items-center gap-2">
+                            <svg class="icon text-amber-500" aria-hidden="true"><use href="#i-clock"></use></svg>Предстоящие матчи
+                        </h2>
+                        <button type="button" class="btn btn-sm btn-secondary" data-action="navigate" data-page="matches">Расписание</button>
+                    </div>
+                    <div id="upcoming-matches" class="p-4 space-y-3"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================ ТАБЛИЦА ============================ -->
+        <section id="page-standings" class="page-section">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h2 class="section-title flex items-center gap-2">
+                        <svg class="icon text-primary-700" aria-hidden="true"><use href="#i-trophy"></use></svg>Турнирная таблица
+                    </h2>
+                    <p class="text-xs text-dark-600">
+                        Победа — 3 очка, ничья — 1. При равенстве очков выше команда с лучшей разницей мячей.
+                    </p>
+                </div>
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <caption class="sr-only">Турнирная таблица Летнего Кубка 2026</caption>
+                        <thead>
+                            <tr>
+                                <th class="num" scope="col" title="Место">#</th>
+                                <th scope="col">Команда</th>
+                                <th class="num" scope="col" title="Игры">И</th>
+                                <th class="num" scope="col" title="Победы">В</th>
+                                <th class="num" scope="col" title="Ничьи">Н</th>
+                                <th class="num" scope="col" title="Поражения">П</th>
+                                <th class="num" scope="col" title="Забитые и пропущенные мячи">Мячи</th>
+                                <th class="num" scope="col" title="Разница мячей">РМ</th>
+                                <th class="num" scope="col" title="Последние пять матчей">Форма</th>
+                                <th class="num" scope="col" title="Очки">О</th>
+                            </tr>
+                        </thead>
+                        <tbody id="standings-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================ КОМАНДЫ ============================ -->
+        <section id="page-teams" class="page-section">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h2 class="section-title flex items-center gap-2">
+                        <svg class="icon text-primary-700" aria-hidden="true"><use href="#i-users"></use></svg>Команды турнира
+                    </h2>
+                    <div class="relative w-full md:w-80">
+                        <svg class="icon absolute left-3 top-1/2 -translate-y-1/2 text-dark-500" aria-hidden="true"><use href="#i-search"></use></svg>
+                        <label class="sr-only" for="team-search">Поиск команды</label>
+                        <input type="search" id="team-search" placeholder="Поиск команды…" class="input-field pl-10" autocomplete="off">
+                    </div>
+                </div>
+            </div>
+            <div id="teams-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </section>
+
+        <!-- ============================ МАТЧИ ============================ -->
+        <section id="page-matches" class="page-section">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h2 class="section-title flex items-center gap-2">
+                        <svg class="icon text-primary-700" aria-hidden="true"><use href="#i-calendar"></use></svg>Матчи турнира
+                    </h2>
+                    <div class="flex flex-wrap gap-2" role="group" aria-label="Фильтр матчей">
+                        <button type="button" class="btn btn-sm btn-secondary" data-action="filter" data-filter="all">Все</button>
+                        <button type="button" class="btn btn-sm btn-secondary" data-action="filter" data-filter="finished">Завершённые</button>
+                        <button type="button" class="btn btn-sm btn-secondary" data-action="filter" data-filter="upcoming">Предстоящие</button>
+                    </div>
+                </div>
+            </div>
+            <div id="matches-list" class="space-y-3"></div>
+        </section>
+
+        <!-- ======================= ВХОД АДМИНИСТРАТОРА ======================= -->
+        <section id="page-admin-login" class="page-section">
+            <div class="max-w-md mx-auto card p-8 mt-8">
+                <div class="text-center mb-6">
+                    <span class="team-badge badge-color-1 mx-auto mb-4">
+                        <svg class="icon-lg" aria-hidden="true"><use href="#i-lock"></use></svg>
+                    </span>
+                    <h2 class="font-bold text-xl mb-2">Вход для администратора</h2>
+                    <p class="text-sm text-dark-600">
+                        Введите пароль, чтобы управлять командами, матчами и результатами.
+                    </p>
+                </div>
+
+                <form data-form="login" novalidate>
+                    <label class="field-label" for="admin-password">Пароль</label>
+                    <input type="password" id="admin-password" class="input-field" placeholder="Пароль администратора" autocomplete="current-password">
+                    <p id="login-error" class="field-error" role="alert"></p>
+                    <button type="submit" class="btn btn-primary w-full mt-4">
+                        <svg class="icon" aria-hidden="true"><use href="#i-logout"></use></svg>Войти
+                    </button>
+                </form>
+
+                <p class="text-xs text-dark-600 mt-4 text-center">
+                    Данные хранятся в этом браузере (localStorage) и не отправляются на сервер.
+                </p>
+            </div>
+        </section>
+
+        <!-- ========================= АДМИН-ПАНЕЛЬ ========================= -->
+        <section id="page-admin-dashboard" class="page-section admin-panel -mx-4 px-4 py-6 md:rounded">
+            <div class="flex flex-wrap justify-between items-center gap-3 mb-6">
+                <h2 class="font-bold text-xl text-white flex items-center gap-2">
+                    <svg class="icon-lg" aria-hidden="true"><use href="#i-cog"></use></svg>Панель управления
+                </h2>
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" class="btn btn-sm btn-ghost" data-action="export-data">
+                        <svg class="icon" aria-hidden="true"><use href="#i-download"></use></svg>Экспорт
+                    </button>
+                    <button type="button" class="btn btn-sm btn-ghost" data-action="import-trigger">
+                        <svg class="icon" aria-hidden="true"><use href="#i-upload"></use></svg>Импорт
+                    </button>
+                    <button type="button" class="btn btn-sm btn-ghost" data-action="reset-data">
+                        <svg class="icon" aria-hidden="true"><use href="#i-refresh"></use></svg>Демо-данные
+                    </button>
+                    <button type="button" class="btn btn-sm btn-danger" data-action="logout">
+                        <svg class="icon" aria-hidden="true"><use href="#i-logout"></use></svg>Выйти
+                    </button>
+                </div>
+            </div>
+
+            <input type="file" id="file-import" accept="application/json,.json" class="hidden" aria-hidden="true" tabindex="-1">
+
+            <div id="admin-summary" class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6"></div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <!-- Добавление команды -->
+                <div class="admin-card">
+                    <h3 class="admin-title">
+                        <svg class="icon" aria-hidden="true"><use href="#i-users"></use></svg>Добавить команду
+                    </h3>
+                    <form data-form="add-team" novalidate>
+                        <label class="field-label text-dark-200" for="new-team-name">Название команды</label>
+                        <input type="text" id="new-team-name" class="admin-input" placeholder="Например, Зенит" maxlength="30">
+                        <p id="team-form-error" class="field-error" role="alert"></p>
+                        <button type="submit" class="btn btn-primary w-full mt-3">
+                            <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>Создать
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Добавление и изменение матча -->
+                <div class="admin-card lg:col-span-2">
+                    <h3 class="admin-title" id="match-form-title">
+                        <svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg>Добавить матч
+                    </h3>
+                    <form data-form="match" class="grid grid-cols-1 md:grid-cols-2 gap-3" novalidate>
+                        <div>
+                            <label class="field-label text-dark-200" for="match-team-a">Команда 1</label>
+                            <select id="match-team-a" class="admin-input"></select>
+                        </div>
+                        <div>
+                            <label class="field-label text-dark-200" for="match-team-b">Команда 2</label>
+                            <select id="match-team-b" class="admin-input"></select>
+                        </div>
+                        <div>
+                            <label class="field-label text-dark-200" for="match-score-a">Счёт команды 1</label>
+                            <input type="number" id="match-score-a" class="admin-input" min="0" max="99" step="1" placeholder="не заполнено">
+                        </div>
+                        <div>
+                            <label class="field-label text-dark-200" for="match-score-b">Счёт команды 2</label>
+                            <input type="number" id="match-score-b" class="admin-input" min="0" max="99" step="1" placeholder="не заполнено">
+                        </div>
+                        <div>
+                            <label class="field-label text-dark-200" for="match-date">Дата матча</label>
+                            <input type="date" id="match-date" class="admin-input">
+                        </div>
+                        <div class="flex items-end">
+                            <p class="admin-hint">
+                                Счёт можно оставить пустым — матч сохранится как предстоящий, результат добавите позже.
+                            </p>
+                        </div>
+                        <p id="match-form-error" class="field-error md:col-span-2" role="alert"></p>
+                        <div class="md:col-span-2 flex flex-wrap gap-2">
+                            <button type="submit" class="btn btn-warning" id="match-submit">
+                                <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>Сохранить матч
+                            </button>
+                            <button type="button" class="btn btn-ghost" id="match-cancel" data-action="match-cancel-edit" hidden>
+                                Отмена
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Список команд -->
+            <div class="admin-card mt-4">
+                <h3 class="admin-title">
+                    <svg class="icon" aria-hidden="true"><use href="#i-trophy"></use></svg>Команды: переименование и удаление
+                </h3>
+                <div class="table-wrap">
+                    <table class="data-table admin-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Команда</th>
+                                <th class="num" scope="col">Игроков</th>
+                                <th class="num" scope="col">Матчей</th>
+                                <th scope="col">Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-teams-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Список матчей -->
+            <div class="admin-card mt-4">
+                <h3 class="admin-title">
+                    <svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg>Матчи: результаты и правка
+                </h3>
+                <div class="table-wrap">
+                    <table class="data-table admin-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Дата</th>
+                                <th scope="col">Матч</th>
+                                <th class="num" scope="col">Счёт</th>
+                                <th class="num" scope="col">Статус</th>
+                                <th scope="col">Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-matches-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Игроки -->
+            <div class="admin-card mt-4">
+                <h3 class="admin-title">
+                    <svg class="icon" aria-hidden="true"><use href="#i-users"></use></svg>
+                    Игроки команды «<span id="admin-players-team">команда не выбрана</span>»
+                </h3>
+                <form data-form="add-player" class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4" novalidate>
+                    <div>
+                        <label class="field-label text-dark-200" for="player-team-select">Команда</label>
+                        <select id="player-team-select" class="admin-input"></select>
+                    </div>
+                    <div>
+                        <label class="field-label text-dark-200" for="new-player-name">Имя игрока</label>
+                        <input type="text" id="new-player-name" class="admin-input" placeholder="Например, Иванов А." maxlength="40">
+                    </div>
+                    <div class="flex items-end">
+                        <button type="submit" class="btn btn-primary w-full">
+                            <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>Добавить игрока
+                        </button>
+                    </div>
+                    <p id="player-form-error" class="field-error md:col-span-3" role="alert"></p>
+                </form>
+                <div id="admin-players-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2"></div>
+            </div>
+        </section>
+
+    </main>
+
+    <noscript>
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="banner banner-warning mb-6 mt-6">
+                Для работы сайта нужен включённый JavaScript: без него не строятся таблица, список матчей и админ-панель.
+            </div>
+        </div>
+    </noscript>
+
+    <footer class="bg-dark-900 text-dark-400 py-6 mt-8">
+        <div class="max-w-7xl mx-auto px-4 text-center text-sm space-y-1">
+            <p>&copy; 2026 Футбольный турнир. Летний Кубок.</p>
+            <p class="text-xs">
+                Статический сайт без серверной части: данные хранятся в браузере. Результаты обновляет администратор
+                через <button type="button" class="underline hover:text-white" data-action="navigate" data-page="admin">панель управления</button>.
+            </p>
+        </div>
+    </footer>
+
+    <!-- Всплывающие уведомления -->
+    <div id="toast-container" class="toast-wrap" aria-live="polite" aria-atomic="false"></div>
+
+    <!-- Логика: сначала «чистый» модуль, затем слой DOM -->
+    <script src="assets/js/logic.js" defer></script>
+    <script src="assets/js/app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+# Служебные файлы и каталоги, которые не нужно индексировать
+Disallow: /node_modules/
+Disallow: /src/
+Disallow: /tests/
+Disallow: /tools/
+Disallow: /package.json
+Disallow: /package-lock.json
+Disallow: /tailwind.config.js
