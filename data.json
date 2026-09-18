@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "revision": 17,
-  "updatedAt": "2026-09-15T11:32:16.558Z",
+  "revision": 19,
+  "updatedAt": "2026-09-18T06:39:52.186Z",
   "teams": [
     {
       "id": 1,
@@ -55,19 +55,19 @@
       "id": 3,
       "teamA": 4,
       "teamB": 1,
+      "scoreA": 2,
+      "scoreB": 2,
       "date": "2026-09-16",
-      "scoreA": null,
-      "scoreB": null,
-      "finished": false
+      "finished": true
     },
     {
       "id": 4,
       "teamA": 2,
       "teamB": 3,
+      "scoreA": 1,
+      "scoreB": 1,
       "date": "2026-09-16",
-      "scoreA": null,
-      "scoreB": null,
-      "finished": false
+      "finished": true
     }
   ]
 }
