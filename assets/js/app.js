@@ -40,7 +40,9 @@
         standingsCompact: true,
         editingTeamId: null,
         editingMatchId: null,
-        editingPlayer: null
+        editingPlayer: null,
+        /** Открытый раздел админки: «Команды» или «Матчи» (см. ADMIN_TABS). */
+        adminTab: 'teams'
     };
 
     /**
@@ -992,10 +994,63 @@
 
     function renderAdmin() {
         renderAdminSummary();
+        renderAdminTabs();
         renderAdminTeams();
         renderAdminMatches();
         renderAdminPlayers();
         fillAdminSelects();
+    }
+
+    /* ================================================================== */
+    /* Разделы админ-панели «Команды» и «Матчи»                           */
+    /* ================================================================== */
+
+    /** Доступные разделы админки (кнопки-вкладки в шапке панели). */
+    var ADMIN_TABS = { teams: true, matches: true };
+    var DEFAULT_ADMIN_TAB = 'teams';
+
+    /**
+     * Показывает выбранный раздел и подсвечивает его кнопку:
+     * неактивные разделы скрываются, у активной кнопки появляется aria-selected.
+     */
+    function renderAdminTabs() {
+        qsa('[data-admin-tab]').forEach(function (button) {
+            var isActive = button.getAttribute('data-admin-tab') === state.adminTab;
+
+            button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            button.tabIndex = isActive ? 0 : -1;
+            button.classList.toggle('btn-primary', isActive);
+            button.classList.toggle('btn-ghost', !isActive);
+        });
+
+        qsa('[data-admin-tabpanel]').forEach(function (panel) {
+            panel.hidden = panel.getAttribute('data-admin-tabpanel') !== state.adminTab;
+        });
+    }
+
+    /**
+     * Переключение раздела админки.
+     * options.focus — перевести фокус на кнопку раздела (навигация стрелками).
+     */
+    function showAdminTab(tab, options) {
+        var opts = options || {};
+
+        state.adminTab = ADMIN_TABS[tab] ? tab : DEFAULT_ADMIN_TAB;
+        renderAdminTabs();
+
+        if (opts.focus) {
+            var active = qsa('[data-admin-tab]').filter(function (button) {
+                return button.getAttribute('data-admin-tab') === state.adminTab;
+            })[0];
+
+            if (active && typeof active.focus === 'function') {
+                active.focus();
+            }
+        }
+
+        if (opts.scroll !== false && typeof window.scrollTo === 'function') {
+            window.scrollTo(0, 0);
+        }
     }
 
     /** Сводные карточки админки. */
@@ -1390,6 +1445,8 @@
         state.editingTeamId = null;
         state.editingMatchId = null;
         state.editingPlayer = null;
+        // Следующий вход начинается с раздела «Команды»
+        state.adminTab = DEFAULT_ADMIN_TAB;
         writeAdminSession(false);
         applyRoute('home');
         toast('Вы вышли из админ-панели', 'info');
@@ -1904,6 +1961,8 @@
             }
         } else if (action === 'logout') {
             handleLogout();
+        } else if (action === 'admin-tab') {
+            showAdminTab(element.getAttribute('data-admin-tab'));
         } else if (action === 'reset-data') {
             resetData();
         } else if (action === 'team-rename') {
@@ -1997,11 +2056,45 @@
         }
     }
 
+    /**
+     * Стрелки ←/→ и клавиши Home/End переключают разделы админки, когда фокус
+     * находится на кнопке раздела, — привычное поведение списка вкладок.
+     */
+    function handleKeydown(event) {
+        var target = event.target && event.target.closest ? event.target.closest('[data-admin-tab]') : null;
+
+        if (!target || event.altKey || event.ctrlKey || event.metaKey) {
+            return;
+        }
+
+        var tabs = qsa('[data-admin-tab]');
+        var index = tabs.indexOf(target);
+        var next = null;
+
+        if (event.key === 'ArrowRight') {
+            next = tabs[(index + 1) % tabs.length];
+        } else if (event.key === 'ArrowLeft') {
+            next = tabs[(index - 1 + tabs.length) % tabs.length];
+        } else if (event.key === 'Home') {
+            next = tabs[0];
+        } else if (event.key === 'End') {
+            next = tabs[tabs.length - 1];
+        }
+
+        if (!next) {
+            return;
+        }
+
+        event.preventDefault();
+        showAdminTab(next.getAttribute('data-admin-tab'), { focus: true });
+    }
+
     function bindEvents() {
         document.addEventListener('click', handleClick);
         document.addEventListener('submit', handleSubmit);
         document.addEventListener('change', handleChange);
         document.addEventListener('input', handleInput);
+        document.addEventListener('keydown', handleKeydown);
 
         window.addEventListener('hashchange', function () {
             applyRoute(parseHash(), { updateHash: false, scroll: false });

@@ -281,12 +281,17 @@ test('админ-панель целиком в браузере: вход, ко
     assert.equal(await sectionVisible(page, 'page-admin-dashboard'), true);
     assert.equal(await sectionVisible(page, 'page-admin-login'), false);
 
+    // Админка разделена на разделы: открыт «Команды», раздел «Матчи» скрыт
+    assert.equal(await sectionVisible(page, 'admin-panel-teams'), true);
+    assert.equal(await sectionVisible(page, 'admin-panel-matches'), false);
+
     // Сессия администратора сохраняется при переходах по сайту
     await page.click('[data-nav="teams"]');
     await page.click('[data-nav="admin"]');
     assert.equal(await sectionVisible(page, 'page-admin-dashboard'), true);
+    assert.equal(await sectionVisible(page, 'admin-panel-teams'), true, 'раздел «Команды» открыт по умолчанию');
 
-    // Добавляем команду
+    // Добавляем команду (раздел «Команды»)
     await page.type('#new-team-name', 'Зенит');
     await page.click('[data-form="add-team"] button[type="submit"]');
     await page.waitForFunction(() => document.querySelectorAll('#admin-teams-body tr').length === 5);
@@ -296,6 +301,11 @@ test('админ-панель целиком в браузере: вход, ко
     await page.type('#new-team-name', 'зенит');
     await page.click('[data-form="add-team"] button[type="submit"]');
     assert.match(await textOf(page, '#team-form-error'), /уже есть/);
+
+    // Переходим в раздел «Матчи»: формы и таблица матчей находятся там
+    await page.click('[data-admin-tab="matches"]');
+    assert.equal(await sectionVisible(page, 'admin-panel-matches'), true);
+    assert.equal(await sectionVisible(page, 'admin-panel-teams'), false, 'раздел «Команды» скрылся');
 
     // Добавляем матч без счёта
     await page.select('#match-team-a', '1');
@@ -461,6 +471,8 @@ test('синхронизация: посетитель видит данные �
     await clickWhenReady(admin.page, '[data-form="login"] button[type="submit"]');
     await admin.page.waitForFunction(() => window.FTApp && window.FTApp.isAdmin());
 
+    // Блок «Настройки» скрыт по умолчанию — открываем его кнопкой в шапке панели
+    await clickWhenReady(admin.page, '[data-action="toggle-settings"]');
     await admin.page.type('#github-token', 'test-token');
     await clickWhenReady(admin.page, '[data-action="github-save-token"]');
     await admin.page.waitForFunction(() => document.getElementById('github-token').placeholder.includes('сохранён'));

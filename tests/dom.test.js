@@ -276,6 +276,63 @@ test('админка: вход только по паролю, сессия со
     assert.equal(app.activeSection(), 'page-admin-login', 'после выхода нужен пароль снова');
 });
 
+test('админка: разделы «Команды» и «Матчи» переключаются, блоки не путаются', () => {
+    const app = boot();
+    app.login();
+
+    const teamsTab = app.$('[data-admin-tab="teams"]');
+    const matchesTab = app.$('[data-admin-tab="matches"]');
+    const teamsPanel = app.id('admin-panel-teams');
+    const matchesPanel = app.id('admin-panel-matches');
+
+    // По умолчанию открыт раздел «Команды»
+    assert.equal(teamsTab.getAttribute('aria-selected'), 'true');
+    assert.equal(matchesTab.getAttribute('aria-selected'), 'false');
+    assert.equal(teamsPanel.hidden, false);
+    assert.equal(matchesPanel.hidden, true);
+
+    // В разделе «Команды» — создание команды, её состав и список команд
+    assert.ok(teamsPanel.contains(app.id('new-team-name')));
+    assert.ok(teamsPanel.contains(app.id('admin-players-list')));
+    assert.ok(teamsPanel.contains(app.id('admin-teams-body')));
+    assert.equal(teamsPanel.contains(app.id('match-submit')), false, 'форма матча — в другом разделе');
+
+    // В разделе «Матчи» — только матчи: форма, счёт в строке, список
+    assert.ok(matchesPanel.contains(app.id('match-submit')));
+    assert.ok(matchesPanel.contains(app.id('admin-matches-body')));
+    assert.equal(matchesPanel.contains(app.id('new-team-name')), false, 'форма команды — в другом разделе');
+
+    // Кнопка раздела открывает свою панель и снимает подсветку с соседней
+    app.click(matchesTab);
+    assert.equal(app.$('[data-admin-tab="teams"]').getAttribute('aria-selected'), 'false');
+    assert.equal(app.$('[data-admin-tab="matches"]').getAttribute('aria-selected'), 'true');
+    assert.equal(teamsPanel.hidden, true);
+    assert.equal(matchesPanel.hidden, false);
+
+    // В открытом разделе работают свои действия: добавляем матч
+    app.id('match-team-a').value = '1';
+    app.id('match-team-b').value = '2';
+    app.id('match-date').value = '2026-10-05';
+    app.submit(app.$('[data-form="match"]'));
+    assert.equal(app.storedData().matches.length, 5, 'матч добавлен из раздела «Матчи»');
+
+    // Клавиши ←/→ и Home/End переключают разделы, когда фокус на их кнопке
+    const press = (target, key) => target.dispatchEvent(
+        new app.window.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+    );
+
+    press(app.$('[data-admin-tab="matches"]'), 'ArrowLeft');
+    assert.equal(teamsPanel.hidden, false, 'стрелка влево вернула раздел «Команды»');
+    press(app.$('[data-admin-tab="teams"]'), 'End');
+    assert.equal(matchesPanel.hidden, false, 'End открыл последний раздел');
+
+    // Выход и повторный вход начинаются с раздела «Команды»
+    app.click(app.actionButton('logout'));
+    app.login();
+    assert.equal(app.id('admin-panel-teams').hidden, false);
+    assert.equal(app.id('admin-panel-matches').hidden, true);
+});
+
 test('админка: добавление, переименование и удаление команд', () => {
     const app = boot();
     app.login();

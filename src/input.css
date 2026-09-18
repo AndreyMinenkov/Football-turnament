@@ -582,6 +582,15 @@
         color: #bdc1c6;
     }
 
+    /* --- Разделы админ-панели: горизонтальное меню «Команды» / «Матчи» --- */
+    .admin-tabs {
+        border-bottom: 1px solid #5f6368;
+        padding-bottom: 1rem;
+    }
+
+    /* Активная кнопка раздела — .btn-primary, остальные — .btn-ghost;
+       переключение делает renderAdminTabs() в assets/js/app.js */
+
     /* --- Пустое состояние --- */
     .empty-state {
         text-align: center;
