@@ -10,7 +10,7 @@ window.FT_CONFIG = window.FT_CONFIG || {};
 /* --- Где хранятся общие данные турнира (репозиторий на GitHub) --- */
 window.FT_CONFIG.github = Object.assign({
     // Владелец и имя репозитория, в котором лежит сайт
-    owner: 'AndreyMinenkov',
+    owner: 'Footballorchestra',
     repo: 'Football-turnament',
 
     // Ветка и файл с данными
