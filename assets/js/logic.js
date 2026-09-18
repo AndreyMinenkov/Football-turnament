@@ -27,7 +27,8 @@
     var CONFIG = {
         storageKey: 'footballTournamentData',
         sessionKey: 'footballTournamentAdmin',
-        dataVersion: 2,
+        // 3 — в матчах появились события (голы и голевые передачи игроков)
+        dataVersion: 3,
         // Пароль администратора. Внимание: это демонстрационная защита,
         // на статическом хостинге реальную авторизацию без сервера сделать нельзя
         // (подробности — в README.md).
@@ -572,6 +573,191 @@
     }
 
     /* ------------------------------------------------------------------ */
+    /* События матча: голы и голевые передачи                             */
+    /* ------------------------------------------------------------------ */
+
+    /** Типы событий: гол и голевая передача (порядок — как в интерфейсе). */
+    var EVENT_TYPES = ['goal', 'assist'];
+    var EVENT_LABELS = { goal: 'Гол', assist: 'Голевой пас' };
+
+    function isEventType(value) {
+        return EVENT_TYPES.indexOf(value) !== -1;
+    }
+
+    function eventLabel(type) {
+        return EVENT_LABELS[type] || '';
+    }
+
+    /** Одно событие матча: какая команда, какой игрок и что сделал. */
+    function createEvent(teamId, player, type) {
+        return {
+            team: toInt(teamId),
+            player: cleanText(player, CONFIG.maxPlayerNameLength),
+            type: type
+        };
+    }
+
+    /**
+     * Приводит события матча к корректному виду: остаются только голы и пасы
+     * игроков тех двух команд, которые играют в этом матче.
+     */
+    function normalizeMatchEvents(rawEvents, match) {
+        if (rawEvents === undefined || rawEvents === null) {
+            return { events: [], repaired: false };
+        }
+
+        if (!Array.isArray(rawEvents)) {
+            return { events: [], repaired: true };
+        }
+
+        var events = [];
+        var repaired = false;
+        var teamA = toInt(match.teamA);
+        var teamB = toInt(match.teamB);
+
+        rawEvents.forEach(function (event) {
+            if (!isPlainObject(event) || !isEventType(event.type)) {
+                repaired = true;
+                return;
+            }
+
+            var teamId = toInt(event.team);
+            var player = cleanText(event.player, CONFIG.maxPlayerNameLength);
+
+            if (!player || (teamId !== teamA && teamId !== teamB)) {
+                repaired = true;
+                return;
+            }
+
+            events.push({ team: teamId, player: player, type: event.type });
+        });
+
+        return { events: events, repaired: repaired };
+    }
+
+    /** События одной команды в матче (можно ограничить типом). */
+    function teamEvents(events, teamId, type) {
+        var id = toInt(teamId);
+
+        return (Array.isArray(events) ? events : []).filter(function (event) {
+            return toInt(event.team) === id && (!type || event.type === type);
+        });
+    }
+
+    /** Сколько раз игрок забил (или отдал пас) — 0, если записей нет. */
+    function playerEventCount(events, teamId, player, type) {
+        var name = cleanText(player).toLowerCase();
+        var count = 0;
+
+        (Array.isArray(events) ? events : []).forEach(function (event) {
+            if (toInt(event.team) === toInt(teamId) && (!type || event.type === type) &&
+                cleanText(event.player).toLowerCase() === name) {
+                count += 1;
+            }
+        });
+
+        return count;
+    }
+
+    /** Сколько событий записано у команды (можно ограничить типом). */
+    function countTeamEvents(events, teamId, type) {
+        return teamEvents(events, teamId, type).length;
+    }
+
+    /** Добавляет событие в конец списка и возвращает новый список. */
+    function addEvent(events, teamId, player, type) {
+        var list = (Array.isArray(events) ? events : []).slice();
+        var event = createEvent(teamId, player, type);
+
+        if (!isEventType(event.type) || !event.player || event.team === null) {
+            return list;
+        }
+
+        list.push(event);
+        return list;
+    }
+
+    /** Убирает последнюю запись игрока (указанного типа, если он задан). */
+    function removeLastEvent(events, teamId, player, type) {
+        var list = (Array.isArray(events) ? events : []).slice();
+        var name = cleanText(player).toLowerCase();
+        var index = -1;
+
+        for (var i = list.length - 1; i >= 0; i--) {
+            var event = list[i];
+
+            if (toInt(event.team) === toInt(teamId) && (!type || event.type === type) &&
+                cleanText(event.player).toLowerCase() === name) {
+                index = i;
+                break;
+            }
+        }
+
+        if (index !== -1) {
+            list.splice(index, 1);
+        }
+
+        return list;
+    }
+
+    /**
+     * Игроки команды для карточки матча: текущий состав плюс те, у кого уже есть
+     * записи в этом матче (например, игрока потом убрали из состава).
+     */
+    function matchSquad(team, events, teamId) {
+        var players = (team && Array.isArray(team.players)) ? team.players.slice() : [];
+        var seen = {};
+
+        players.forEach(function (player) {
+            seen[cleanText(player).toLowerCase()] = true;
+        });
+
+        teamEvents(events, teamId).forEach(function (event) {
+            var key = cleanText(event.player).toLowerCase();
+
+            if (!seen[key]) {
+                seen[key] = true;
+                players.push(event.player);
+            }
+        });
+
+        return players;
+    }
+
+    /** Переносит записи игрока на новое имя (при переименовании в составе). */
+    function renamePlayerEvents(events, teamId, oldName, newName) {
+        var from = cleanText(oldName).toLowerCase();
+        var to = cleanText(newName, CONFIG.maxPlayerNameLength);
+
+        if (!to) {
+            return (Array.isArray(events) ? events : []).slice();
+        }
+
+        return (Array.isArray(events) ? events : []).map(function (event) {
+            var copy = { team: toInt(event.team), player: event.player, type: event.type };
+
+            if (toInt(event.team) === toInt(teamId) && cleanText(event.player).toLowerCase() === from) {
+                copy.player = to;
+            }
+
+            return copy;
+        });
+    }
+
+    /**
+     * Матчи для админки: сначала прошедшие (от новых к старым), затем предстоящие
+     * (от ближайших к дальним) — в таком порядке удобно вводить результаты.
+     */
+    function groupMatchesForAdmin(matches) {
+        var finished = sortMatches((matches || []).filter(isFinished), 'desc');
+        var upcoming = sortMatches((matches || []).filter(function (match) {
+            return !isFinished(match);
+        }), 'asc');
+
+        return { finished: finished, upcoming: upcoming, all: finished.concat(upcoming) };
+    }
+
+    /* ------------------------------------------------------------------ */
     /* Нормализация данных и хранилище                                     */
     /* ------------------------------------------------------------------ */
 
@@ -703,6 +889,13 @@
             }
 
             usedMatchIds.push(id);
+
+            var events = normalizeMatchEvents(match.events, { teamA: teamA, teamB: teamB });
+
+            if (events.repaired) {
+                repaired = true;
+            }
+
             matches.push({
                 id: id,
                 teamA: teamA,
@@ -710,7 +903,8 @@
                 scoreA: scoreA,
                 scoreB: scoreB,
                 date: date,
-                finished: bothScoresValid
+                finished: bothScoresValid,
+                events: events.events
             });
         });
 
@@ -879,6 +1073,17 @@
         isFinished: isFinished,
         sortMatches: sortMatches,
         selectMatches: selectMatches,
+        groupMatchesForAdmin: groupMatchesForAdmin,
+        isEventType: isEventType,
+        eventLabel: eventLabel,
+        normalizeMatchEvents: normalizeMatchEvents,
+        teamEvents: teamEvents,
+        playerEventCount: playerEventCount,
+        countTeamEvents: countTeamEvents,
+        addEvent: addEvent,
+        removeLastEvent: removeLastEvent,
+        matchSquad: matchSquad,
+        renamePlayerEvents: renamePlayerEvents,
         computeStandings: computeStandings,
         getStats: getStats,
         touchData: touchData,

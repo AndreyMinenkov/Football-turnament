@@ -123,6 +123,26 @@ function boot(options) {
             input.value = password === undefined ? 'admin' : password;
             fire('submit', document.querySelector('[data-form="login"]'));
         },
+        /** Открывает команду по названию — кликом по строке списка команд */
+        openTeam: (name) => {
+            const row = Array.from(document.querySelectorAll('#admin-teams-list [data-action="team-open"]'))
+                .find((button) => button.textContent.includes(name));
+            fire('click', row);
+            return row;
+        },
+        /** Открывает карточку матча — кликом по строке списка матчей */
+        openMatch: (matchId) => {
+            fire('click', document.querySelector(
+                '#admin-matches-list [data-action="match-open"][data-id="' + matchId + '"]'
+            ));
+        },
+        /** Кнопка отметки игрока в карточке матча: type = 'goal' | 'assist' */
+        markButton: (teamId, player, type) => document.querySelector(
+            '.event-btn[data-action="match-event"][data-team="' + teamId + '"][data-player="' + player +
+            '"][data-type="' + type + '"]'
+        ),
+        /** Кнопка во flex-блоке действий (без опоры на таблицу) */
+        button: (action) => document.querySelector('[data-action="' + action + '"]'),
         /** Сохраняет токен GitHub через поле в блоке «Публикация» */
         saveToken: (token) => {
             const input = document.getElementById('github-token');
@@ -204,7 +224,8 @@ test('турнирная таблица: места, очки, разница м
     assert.equal(teamOf(rows[3]).name, 'Локомотив');
     assert.equal(cells(rows[3])[9], '0');
 
-    assert.equal(rows[0].querySelectorAll('.form-dot').length, 1, 'форма команды показана точками');
+    // Форма показана точками в столбце «Форма» (в компактной строке телефона — свои точки)
+    assert.equal(rows[0].querySelectorAll('td:nth-last-child(2) .form-dot').length, 1, 'форма команды показана точками');
 });
 
 test('команды: карточки, поиск и состав', () => {
@@ -291,15 +312,16 @@ test('админка: разделы «Команды» и «Матчи» пер
     assert.equal(teamsPanel.hidden, false);
     assert.equal(matchesPanel.hidden, true);
 
-    // В разделе «Команды» — создание команды, её состав и список команд
+    // В разделе «Команды» — список команд, создание команды и состав
     assert.ok(teamsPanel.contains(app.id('new-team-name')));
+    assert.ok(teamsPanel.contains(app.id('admin-teams-list')));
     assert.ok(teamsPanel.contains(app.id('admin-players-list')));
-    assert.ok(teamsPanel.contains(app.id('admin-teams-body')));
     assert.equal(teamsPanel.contains(app.id('match-submit')), false, 'форма матча — в другом разделе');
 
-    // В разделе «Матчи» — только матчи: форма, счёт в строке, список
+    // В разделе «Матчи» — только матчи: форма, список, карточка
     assert.ok(matchesPanel.contains(app.id('match-submit')));
-    assert.ok(matchesPanel.contains(app.id('admin-matches-body')));
+    assert.ok(matchesPanel.contains(app.id('admin-matches-list')));
+    assert.ok(matchesPanel.contains(app.id('admin-match-view')));
     assert.equal(matchesPanel.contains(app.id('new-team-name')), false, 'форма команды — в другом разделе');
 
     // Кнопка раздела открывает свою панель и снимает подсветку с соседней
@@ -337,14 +359,14 @@ test('админка: добавление, переименование и уд
     const app = boot();
     app.login();
 
-    assert.equal(app.id('admin-teams-body').querySelectorAll('tr').length, 4);
+    assert.equal(app.id('admin-teams-list').querySelectorAll('[data-action="team-open"]').length, 4);
 
     // Добавление (пробелы лишние убираются)
     app.type(app.id('new-team-name'), '  Зенит  ');
     app.submit(app.$('[data-form="add-team"]'));
     assert.equal(app.storedData().teams.length, 5);
-    assert.equal(app.id('admin-teams-body').querySelectorAll('tr').length, 5);
-    assert.match(app.id('admin-teams-body').textContent, /Зенит/);
+    assert.equal(app.id('admin-teams-list').querySelectorAll('[data-action="team-open"]').length, 5);
+    assert.match(app.id('admin-teams-list').textContent, /Зенит/);
     assert.equal(app.id('new-team-name').value, '');
     assert.equal(app.id('team-form-error').textContent, '');
     assert.equal(app.id('stat-teams').textContent, '5', 'публичная статистика обновилась');
@@ -360,45 +382,59 @@ test('админка: добавление, переименование и уд
     app.submit(app.$('[data-form="add-team"]'));
     assert.match(app.id('team-form-error').textContent, /Введите название/);
 
-    const teamRow = (name) => Array.from(app.id('admin-teams-body').querySelectorAll('tr'))
-        .find((row) => row.textContent.includes(name));
+    // Клик по названию открывает карточку команды, список остаётся в стороне
+    app.openTeam('Зенит');
+    assert.equal(app.id('admin-team-list-view').hidden, true, 'список команд скрылся');
+    assert.equal(app.id('admin-team-view').hidden, false, 'открылась карточка команды');
+    assert.match(app.id('admin-team-title').textContent, /Зенит/);
 
     // Переименование
-    app.click(teamRow('Зенит').querySelector('[data-action="team-rename"]'));
+    app.click(app.button('team-rename'));
     assert.ok(app.id('team-rename-input'), 'появилось поле переименования');
     app.type(app.id('team-rename-input'), 'Зенит СПб');
-    app.click(app.id('admin-teams-body').querySelector('[data-action="team-save"]'));
+    app.click(app.button('team-save'));
     assert.equal(app.id('team-rename-input'), null, 'режим правки закрылся');
     assert.ok(app.storedData().teams.some((team) => team.name === 'Зенит СПб'));
+    assert.match(app.id('admin-team-title').textContent, /Зенит СПб/, 'название в карточке обновилось');
 
     // Отмена переименования ничего не меняет
-    app.click(teamRow('Зенит СПб').querySelector('[data-action="team-rename"]'));
+    app.click(app.button('team-rename'));
     app.id('team-rename-input').value = 'Не должно сохраниться';
-    app.click(app.id('admin-teams-body').querySelector('[data-action="team-cancel-edit"]'));
+    app.click(app.button('team-cancel-edit'));
     assert.equal(app.storedData().teams.filter((team) => team.name === 'Не должно сохраниться').length, 0);
+
+    // Кнопка «Все команды» возвращает список
+    app.click(app.button('team-back'));
+    assert.equal(app.id('admin-team-list-view').hidden, false);
+    assert.equal(app.id('admin-team-view').hidden, true);
+    assert.equal(app.id('admin-teams-list').querySelectorAll('[data-action="team-open"]').length, 5);
 
     // Удаление: команда удаляется вместе со своими матчами
     const before = app.storedData();
     assert.equal(before.matches.length, 4);
-    app.click(teamRow('Спартак').querySelector('[data-action="team-delete"]'));
+    app.openTeam('Спартак');
+    app.click(app.button('team-delete'));
 
     const after = app.storedData();
     assert.equal(after.teams.length, 4);
     assert.equal(after.teams.some((team) => team.name === 'Спартак'), false);
     assert.equal(after.matches.length, 2, 'матчи удалённой команды тоже удалены');
     assert.ok(after.matches.every((match) => match.teamA !== 1 && match.teamB !== 1));
+    assert.equal(app.id('admin-team-view').hidden, true, 'карточка удалённой команды закрылась');
+    assert.equal(app.id('admin-team-list-view').hidden, false);
 });
 
 test('админка: отказ от подтверждения отменяет удаление', () => {
     const app = boot({ confirm: false });
     app.login();
 
-    const firstRow = app.id('admin-teams-body').querySelector('tr');
-    app.click(firstRow.querySelector('[data-action="team-delete"]'));
+    app.openTeam('Спартак');
+    app.click(app.button('team-delete'));
     assert.equal(app.storedData().teams.length, 4, 'данные не изменились');
 
-    const matchRow = app.id('admin-matches-body').querySelector('tr');
-    app.click(matchRow.querySelector('[data-action="match-delete"]'));
+    app.click(app.button('team-back'));
+    app.openMatch(1);
+    app.click(app.button('match-delete'));
     assert.equal(app.storedData().matches.length, 4);
 });
 
@@ -451,12 +487,15 @@ test('админка: ввод счёта, переоткрытие, правк�
 
     assert.equal(app.storedData().matches.find((match) => match.id === 3).finished, false);
 
-    const rowOf = (matchId) => app.id('score-a-' + matchId).closest('tr');
+    // Матч открывается кликом по строке списка: счёт вводится в его карточке
+    app.openMatch(3);
+    assert.equal(app.id('admin-match-list-view').hidden, true, 'список матчей скрылся');
+    assert.equal(app.id('admin-match-view').hidden, false, 'открылась карточка матча');
 
     // Победный счёт Спартака над Динамо
     app.id('score-a-3').value = '4';
     app.id('score-b-3').value = '0';
-    app.click(rowOf(3).querySelector('[data-action="match-save-score"]'));
+    app.click(app.button('match-save-score'));
 
     const saved = app.storedData().matches.find((match) => match.id === 3);
     assert.deepEqual([saved.scoreA, saved.scoreB, saved.finished], [4, 0, true]);
@@ -471,7 +510,8 @@ test('админка: ввод счёта, переоткрытие, правк�
 
     // Переоткрытие матча убирает его из зачёта
     app.navigate('admin');
-    app.click(rowOf(3).querySelector('[data-action="match-reopen"]'));
+    app.openMatch(3);
+    app.click(app.button('match-reopen'));
     assert.equal(app.storedData().matches.find((match) => match.id === 3).finished, false);
 
     app.navigate('standings');
@@ -481,21 +521,25 @@ test('админка: ввод счёта, переоткрытие, правк�
 
     // Редактирование матча через форму
     app.navigate('admin');
-    app.click(rowOf(3).querySelector('[data-action="match-edit"]'));
+    app.openMatch(3);
+    app.click(app.button('match-edit'));
     assert.equal(app.id('match-form-title').textContent, 'Изменить матч');
     assert.equal(app.id('match-date').value, '2026-09-20');
     assert.equal(app.id('match-cancel').hidden, false, 'появилась кнопка отмены');
     assert.equal(app.id('match-score-a').value, '', 'у переоткрытого матча счёта ещё нет');
+    assert.equal(app.id('admin-match-view').hidden, true, 'форма открылась в списке матчей');
 
     // Форма подставляет данные уже завершённого матча
-    app.click(rowOf(1).querySelector('[data-action="match-edit"]'));
+    app.openMatch(1);
+    app.click(app.button('match-edit'));
     assert.deepEqual(
         [app.id('match-score-a').value, app.id('match-score-b').value, app.id('match-date').value],
         ['2', '1', '2026-09-10']
     );
 
     // Сохраняем изменения переоткрытого матча №3
-    app.click(rowOf(3).querySelector('[data-action="match-edit"]'));
+    app.openMatch(3);
+    app.click(app.button('match-edit'));
     app.id('match-date').value = '2026-11-11';
     app.id('match-score-a').value = '1';
     app.id('match-score-b').value = '1';
@@ -507,26 +551,94 @@ test('админка: ввод счёта, переоткрытие, правк�
     assert.equal(app.id('match-cancel').hidden, true);
 
     // Отмена правки возвращает форму в исходное состояние
-    app.click(rowOf(3).querySelector('[data-action="match-edit"]'));
+    app.openMatch(3);
+    app.click(app.button('match-edit'));
     app.click(app.id('match-cancel'));
     assert.equal(app.id('match-form-title').textContent, 'Добавить матч');
     assert.equal(app.id('match-score-a').value, '');
 
     // Удаление матча
-    app.click(rowOf(3).querySelector('[data-action="match-delete"]'));
+    app.openMatch(3);
+    app.click(app.button('match-delete'));
     assert.equal(app.storedData().matches.length, 3);
     assert.equal(app.id('stat-matches').textContent, '3');
+    assert.equal(app.id('admin-match-view').hidden, true, 'карточка закрылась после удаления');
+    assert.equal(app.id('admin-match-list-view').hidden, false);
+});
+
+test('админка: в карточке матча отмечаются голы и голевые передачи', () => {
+    const app = boot();
+    app.login();
+
+    app.openMatch(1);
+    assert.match(app.id('admin-match-score').textContent, /Спартак/);
+    assert.match(app.id('admin-match-score').textContent, /Локомотив/);
+
+    // Состав обеих команд: у каждого игрока две отметки — мяч и бутса
+    assert.equal(app.id('admin-match-events').querySelectorAll('.event-row').length, 5);
+    assert.equal(app.id('admin-match-events').querySelectorAll('.event-btn').length, 10);
+    assert.equal(app.id('admin-match-events').querySelectorAll('.event-btn.is-active').length, 0, 'записей ещё нет');
+
+    // Нажатие на мяч записывает гол, иконка становится активной
+    app.click(app.markButton(1, 'Иванов А.', 'goal'));
+    assert.deepEqual(app.storedData().matches[0].events, [{ team: 1, player: 'Иванов А.', type: 'goal' }]);
+    assert.equal(app.markButton(1, 'Иванов А.', 'goal').classList.contains('is-active'), true);
+    assert.equal(app.markButton(1, 'Иванов А.', 'goal').getAttribute('aria-pressed'), 'true');
+    assert.equal(app.markButton(1, 'Иванов А.', 'goal').querySelector('.event-count').textContent, '1');
+
+    // Второй гол того же игрока — счётчик растёт
+    app.click(app.markButton(1, 'Иванов А.', 'goal'));
+    assert.equal(app.markButton(1, 'Иванов А.', 'goal').querySelector('.event-count').textContent, '2');
+
+    // Голевая передача — отдельная иконка
+    app.click(app.markButton(1, 'Петров П.', 'assist'));
+    assert.deepEqual(app.storedData().matches[0].events[2], { team: 1, player: 'Петров П.', type: 'assist' });
+    assert.equal(app.markButton(1, 'Петров П.', 'goal').classList.contains('is-active'), false, 'гол не засчитан');
+    assert.equal(app.markButton(1, 'Петров П.', 'assist').classList.contains('is-active'), true);
+
+    // Гол игрока второй команды
+    app.click(app.markButton(2, 'Кузнецов К.', 'goal'));
+    assert.equal(app.markButton(2, 'Кузнецов К.', 'goal').classList.contains('is-active'), true);
+
+    // Подсказка сверяет записанные голы со счётом матча (2:1)
+    assert.match(app.id('admin-match-score').textContent, /Записано голов: 3 из 3/);
+
+    // «Убрать последнюю запись» снимает один гол
+    app.click(app.id('admin-match-events').querySelector('[data-action="match-event-undo"]'));
+    assert.equal(app.markButton(1, 'Иванов А.', 'goal').querySelector('.event-count').textContent, '1');
+    assert.equal(app.storedData().matches[0].events.length, 3);
+
+    // В списке матчей виден счёт и число записанных голов
+    app.click(app.button('match-back'));
+    const matchRow = app.id('admin-matches-list').querySelector('[data-action="match-open"][data-id="1"]');
+    assert.match(matchRow.textContent, /Спартак 2 : 1 Локомотив/);
+    assert.equal(matchRow.querySelector('.admin-row-count').textContent.trim(), '2');
+
+    // Переименование игрока переносит его записи на новое имя
+    app.openTeam('Спартак');
+    app.click(app.id('admin-players-list').querySelector('[data-action="player-rename"]'));
+    app.type(app.id('player-rename-input'), 'Иванов-старший');
+    app.click(app.id('admin-players-list').querySelector('[data-action="player-save"]'));
+
+    const renamed = app.storedData().matches.find((match) => match.id === 1);
+    assert.equal(renamed.events.some((event) => event.player === 'Иванов-старший'), true, 'записи перешли на новое имя');
+    assert.equal(renamed.events.some((event) => event.player === 'Иванов А.'), false);
+
+    // Записи сохраняются в хранилище и видны снова после перезагрузки страницы
+    const reloaded = boot({ seed: { [DATA_KEY]: JSON.stringify(app.storedData()) } });
+    reloaded.login();
+    reloaded.openMatch(1);
+    assert.equal(reloaded.markButton(1, 'Иванов-старший', 'goal').querySelector('.event-count').textContent, '1');
+    assert.equal(reloaded.markButton(2, 'Кузнецов К.', 'goal').classList.contains('is-active'), true);
 });
 
 test('админка: игроки — добавление, проверки, переименование и удаление', () => {
     const app = boot();
     app.login();
 
-    const select = app.id('player-team-select');
-    select.value = '1';
-    app.change(select);
-
-    assert.match(app.id('admin-players-team').textContent, /Спартак/);
+    // Состав открывается кликом по команде в списке
+    app.openTeam('Спартак');
+    assert.match(app.id('admin-team-title').textContent, /Спартак/);
     assert.equal(app.id('admin-players-list').querySelectorAll('.admin-card').length, 3);
 
     // Добавление
@@ -547,8 +659,9 @@ test('админка: игроки — добавление, проверки, �
     app.submit(app.$('[data-form="add-player"]'));
     assert.match(app.id('player-form-error').textContent, /Введите имя/);
 
-    // Выбор команды сохраняется после перерисовки (раньше выделение сбрасывалось)
-    assert.equal(app.id('player-team-select').value, '1');
+    // Открытая команда остаётся открытой после перерисовки
+    assert.equal(app.id('admin-team-view').hidden, false);
+    assert.match(app.id('admin-team-title').textContent, /Спартак/);
 
     // Переименование
     app.click(app.id('admin-players-list').querySelector('[data-action="player-rename"]'));
@@ -581,7 +694,7 @@ test('админка: импорт JSON, понятные ошибки и сбр
 
     assert.equal(app.window.FTApp.importData(valid), true);
     assert.equal(app.storedData().teams.length, 1);
-    assert.match(app.id('admin-teams-body').textContent, /Импорт/);
+    assert.match(app.id('admin-teams-list').textContent, /Импорт/);
     assert.equal(app.storedData().matches.length, 0, 'матчи «команда сама с собой» отброшены');
     assert.equal(app.id('teams-grid').querySelectorAll('article').length, 1);
 
@@ -624,8 +737,15 @@ test('ввод пользователя экранируется: нет XSS и 
     assert.match(app.id('teams-grid').textContent, /<img/);
 
     app.navigate('admin');
-    assert.equal(app.id('admin-teams-body').querySelectorAll('img').length, 0);
-    assert.match(app.id('admin-teams-body').textContent, /<img/);
+    assert.equal(app.id('admin-teams-list').querySelectorAll('img').length, 0);
+    assert.match(app.id('admin-teams-list').textContent, /<img/);
+
+    // Имя игрока с разметкой не ломает карточку матча и её кнопки-отметки
+    app.openTeam('<img src=x onerror=alert(1)>');
+    app.type(app.id('new-player-name'), '<b>Игрок</b>');
+    app.submit(app.$('[data-form="add-player"]'));
+    assert.equal(app.id('admin-players-list').querySelectorAll('b').length, 0);
+    assert.match(app.id('admin-players-list').textContent, /<b>Игрок<\/b>/);
 
     app.navigate('standings');
     assert.equal(app.id('standings-body').querySelectorAll('img').length, 0);

@@ -134,6 +134,34 @@ async function clickWhenReady(page, selector, attempts) {
     }
 }
 
+/**
+ * Прокручивает элемент к центру экрана и кликает по нему.
+ * Нужно для кнопок у самой границы окна: центр такой кнопки лежит вне вьюпорта,
+ * и обычный клик по координатам не срабатывает. Прокрутка задаётся как «instant»,
+ * а перед кликом проверяется, что под курсором именно эта кнопка (в проекте
+ * включена плавная прокрутка, из-за неё координаты меняются не сразу).
+ */
+async function clickInView(page, selector) {
+    await page.$eval(selector, (element) => {
+        element.scrollIntoView({ block: 'center', behavior: 'instant' });
+    });
+
+    await page.waitForFunction((target) => {
+        const element = document.querySelector(target);
+
+        if (!element) {
+            return false;
+        }
+
+        const box = element.getBoundingClientRect();
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+
+        return Boolean(hit) && (hit === element || element.contains(hit));
+    }, {}, selector);
+
+    await clickWhenReady(page, selector);
+}
+
 /** Переходит по адресу и ждёт, пока приложение инициализируется и подтянет данные. */
 async function gotoApp(page, url) {
     await page.goto(url, { waitUntil: 'domcontentloaded' });
@@ -151,7 +179,9 @@ async function reloadApp(page) {
 /** Открывает страницу и собирает ошибки консоли, сбои загрузки и нарушения CSP. */
 async function openPage(options) {
     const settings = options || {};
-    const page = await browser.newPage();
+    // isolated: true — своё хранилище localStorage (как на другом устройстве)
+    const context = settings.isolated ? await createIsolatedContext() : null;
+    const page = context ? await context.newPage() : await browser.newPage();
     const problems = [];
 
     await page.setViewport(settings.mobile
@@ -179,9 +209,47 @@ async function openPage(options) {
     });
     page.on('requestfailed', (request) => problems.push('Не загрузилось: ' + request.url()));
 
+    // Необработанное модальное окно блокирует страницу: любые запросы к ней «зависают».
+    // Поэтому окна всегда закрываем, а сам факт их появления считаем проблемой теста.
+    page.on('dialog', (dialog) => {
+        problems.push('Диалог браузера (' + dialog.type() + '): ' + dialog.message());
+        dialog.accept().catch(() => {});
+    });
+
     await gotoApp(page, settings.url || baseUrl + '/');
 
-    return { page, problems };
+    return {
+        page,
+        problems,
+        /** Закрывает страницу вместе с её хранилищем */
+        close: async () => {
+            await page.close();
+
+            if (context) {
+                await context.close();
+            }
+        }
+    };
+}
+
+/** Снимок данных страницы: сколько команд и матчей, очки команд в таблице. */
+function dataSnapshot(page) {
+    return page.evaluate(() => {
+        const data = window.FTApp.getData();
+        const rows = window.FTLogic.computeStandings(data.teams, data.matches);
+        const points = {};
+
+        rows.forEach((row) => {
+            points[row.id] = row.points;
+        });
+
+        return {
+            teams: data.teams.length,
+            matches: data.matches.length,
+            finished: data.matches.filter((match) => match.finished === true).length,
+            points: points
+        };
+    });
 }
 
 /** Видима ли секция (учитывая display:none у неактивных страниц). */
@@ -203,8 +271,9 @@ function clickAction(page, selector) {
 test('страница открывается без ошибок: стили, локальные шрифты и CSP', { skip }, async () => {
     const { page, problems } = await openPage();
 
-    assert.equal(await textOf(page, '#stat-teams'), '4');
-    assert.equal(await textOf(page, '#stat-matches'), '4');
+    const data = await dataSnapshot(page);
+    assert.equal(await textOf(page, '#stat-teams'), String(data.teams));
+    assert.equal(await textOf(page, '#stat-matches'), String(data.matches));
 
     // Стили из собранного Tailwind применились
     const background = await page.$eval('body', (element) => getComputedStyle(element).backgroundColor);
@@ -225,6 +294,9 @@ test('страница открывается без ошибок: стили, �
 
 test('все страницы открываются и по меню, и по прямой ссылке', { skip }, async () => {
     const { page, problems } = await openPage();
+
+    // Ожидания считаются по данным сайта: содержимое data.json может меняться
+    const data = await dataSnapshot(page);
 
     const routes = [
         ['standings', 'page-standings'],
@@ -250,16 +322,19 @@ test('все страницы открываются и по меню, и по �
     }
 
     await gotoApp(page, baseUrl + '/#/standings');
-    assert.equal(await page.$$eval('#standings-body tr', (rows) => rows.length), 4);
-    assert.match(await textOf(page, '#standings-body tr:first-child'), /Спартак/);
+    assert.equal(await page.$$eval('#standings-body tr', (rows) => rows.length), data.teams);
+
+    // Первая строка таблицы — команда с наибольшим числом очков
+    const leaderPoints = await page.$eval('#standings-body tr:first-child td:last-child', (cell) => Number(cell.textContent.trim()));
+    assert.equal(leaderPoints, Math.max(...Object.values(data.points)), 'первая строка — лидер по очкам');
 
     await gotoApp(page, baseUrl + '/#/teams');
-    assert.equal(await page.$$eval('#teams-grid article', (cards) => cards.length), 4);
+    assert.equal(await page.$$eval('#teams-grid article', (cards) => cards.length), data.teams);
 
     await gotoApp(page, baseUrl + '/#/matches');
-    assert.equal(await page.$$eval('#matches-list .match-card', (cards) => cards.length), 4);
+    assert.equal(await page.$$eval('#matches-list .match-card', (cards) => cards.length), data.matches);
     await page.click('[data-filter="finished"]');
-    assert.equal(await page.$$eval('#matches-list .match-card', (cards) => cards.length), 2);
+    assert.equal(await page.$$eval('#matches-list .match-card', (cards) => cards.length), data.finished);
 
     assert.deepEqual(problems, [], 'ошибок по пути не возникло');
     await page.close();
@@ -268,7 +343,7 @@ test('все страницы открываются и по меню, и по �
 test('админ-панель целиком в браузере: вход, команда, матч, счёт и сохранение после перезагрузки', { skip }, async () => {
     const { page, problems } = await openPage();
 
-    page.on('dialog', (dialog) => dialog.accept());
+    // Модальные окна (подтверждение удаления) закрывает общий обработчик из openPage
 
     // Начинаем с чистого хранилища
     await page.evaluate(() => window.localStorage.clear());
@@ -291,18 +366,34 @@ test('админ-панель целиком в браузере: вход, ко
     assert.equal(await sectionVisible(page, 'page-admin-dashboard'), true);
     assert.equal(await sectionVisible(page, 'admin-panel-teams'), true, 'раздел «Команды» открыт по умолчанию');
 
-    // Добавляем команду (раздел «Команды»)
+    // Состояние данных до правок: ожидания ниже считаются от него,
+    // чтобы тест не зависел от содержимого data.json
+    const before = await dataSnapshot(page);
+
+    // Добавляем команду (раздел «Команды»: список команд и форма под ним)
     await page.type('#new-team-name', 'Зенит');
-    await page.click('[data-form="add-team"] button[type="submit"]');
-    await page.waitForFunction(() => document.querySelectorAll('#admin-teams-body tr').length === 5);
-    assert.equal(await textOf(page, '#stat-teams'), '5');
+    await clickInView(page, '[data-form="add-team"] button[type="submit"]');
+    await page.waitForFunction(() => document.querySelectorAll('#admin-teams-list [data-action="team-open"]').length === 5);
+    assert.equal(await textOf(page, '#stat-teams'), String(before.teams + 1));
 
     // Дубликат отклоняется
     await page.type('#new-team-name', 'зенит');
-    await page.click('[data-form="add-team"] button[type="submit"]');
+    await clickInView(page, '[data-form="add-team"] button[type="submit"]');
     assert.match(await textOf(page, '#team-form-error'), /уже есть/);
 
-    // Переходим в раздел «Матчи»: формы и таблица матчей находятся там
+    // Клик по названию открывает карточку команды: добавляем игрока
+    await clickInView(page, '#admin-teams-list [data-action="team-open"][data-id="5"]');
+    assert.equal(await sectionVisible(page, 'admin-team-view'), true, 'открылась карточка команды');
+    assert.equal(await sectionVisible(page, 'admin-team-list-view'), false, 'список команд скрылся');
+
+    await page.type('#new-player-name', 'Тестовый Игрок');
+    await clickInView(page, '[data-form="add-player"] button[type="submit"]');
+    await page.waitForFunction(() => document.querySelectorAll('#admin-players-list .admin-card').length === 1);
+
+    await clickInView(page, '[data-action="team-back"]');
+    assert.equal(await sectionVisible(page, 'admin-team-list-view'), true, 'кнопка «Все команды» вернула список');
+
+    // Переходим в раздел «Матчи»: список матчей и форма добавления находятся там
     await page.click('[data-admin-tab="matches"]');
     assert.equal(await sectionVisible(page, 'admin-panel-matches'), true);
     assert.equal(await sectionVisible(page, 'admin-panel-teams'), false, 'раздел «Команды» скрылся');
@@ -313,50 +404,68 @@ test('админ-панель целиком в браузере: вход, ко
     await page.$eval('#match-date', (element) => {
         element.value = '2026-12-01';
     });
-    await page.click('#match-submit');
-    await page.waitForFunction(() => document.querySelectorAll('#admin-matches-body tr').length === 5);
+    await clickInView(page, '#match-submit');
+    await page.waitForFunction(() => document.querySelectorAll('#admin-matches-list [data-action="match-open"]').length === 5);
 
     const newMatchId = await page.evaluate(() => {
         const stored = JSON.parse(window.localStorage.getItem('footballTournamentData'));
         return stored.matches[stored.matches.length - 1].id;
     });
 
-    // Вводим счёт прямо в строке таблицы матчей
+    // Клик по матчу открывает его карточку: счёт, составы и отметки голов
+    await clickWhenReady(page, '#admin-matches-list [data-action="match-open"][data-id="' + newMatchId + '"]');
+    assert.equal(await sectionVisible(page, 'admin-match-view'), true, 'открылась карточка матча');
+    assert.equal(await sectionVisible(page, 'admin-match-list-view'), false, 'список матчей скрылся');
+
     await page.$eval('#score-a-' + newMatchId, (element) => {
         element.value = '2';
     });
     await page.$eval('#score-b-' + newMatchId, (element) => {
         element.value = '2';
     });
-    await page.evaluate((matchId) => {
-        document.getElementById('score-a-' + matchId).closest('tr')
-            .querySelector('[data-action="match-save-score"]').click();
-    }, newMatchId);
+    await clickInView(page, '[data-action="match-save-score"]');
 
     await page.waitForFunction((matchId) => {
         const stored = JSON.parse(window.localStorage.getItem('footballTournamentData'));
         return stored.matches.find((match) => match.id === matchId).finished === true;
     }, {}, newMatchId);
 
-    // Ничья 2:2 приносит по одному очку
+    // Отмечаем гол игрока новой команды: иконка мяча становится активной
+    const goalButton = '.event-btn[data-action="match-event"][data-team="5"][data-player="Тестовый Игрок"][data-type="goal"]';
+    await clickInView(page, goalButton);
+
+    await page.waitForFunction((matchId) => {
+        const stored = JSON.parse(window.localStorage.getItem('footballTournamentData'));
+        return stored.matches.find((match) => match.id === matchId).events.length === 1;
+    }, {}, newMatchId);
+
+    assert.deepEqual(await page.$eval(goalButton, (element) => ({
+        active: element.classList.contains('is-active'),
+        count: element.textContent.trim(),
+        pressed: element.getAttribute('aria-pressed')
+    })), { active: true, count: '1', pressed: 'true' }, 'гол записан и виден на иконке');
+
+    // Возврат к списку матчей кнопкой «Все матчи»
+    await clickInView(page, '[data-action="match-back"]');
+    assert.equal(await sectionVisible(page, 'admin-match-list-view'), true, 'список матчей вернулся');
+
+    // Ничья 2:2 приносит по одному очку каждой команде
+    const after = await dataSnapshot(page);
+    assert.equal(after.points[1], before.points[1] + 1, 'очко первой команде');
+    assert.equal(after.points[5], 1, 'очко новой команде');
+
     await page.click('[data-nav="standings"]');
-    const zenitRow = await page.evaluate(() => {
+    const zenitPoints = await page.evaluate(() => {
         const row = Array.from(document.querySelectorAll('#standings-body tr'))
             .find((element) => element.textContent.includes('Зенит'));
-        return Array.from(row.querySelectorAll('td')).map((cell) => cell.textContent.trim());
+        return row ? Number(row.querySelector('td:last-child').textContent.trim()) : null;
     });
-    assert.equal(zenitRow[9], '1', 'очки Зенита в таблице');
-
-    const spartakRow = await page.evaluate(() => {
-        const row = document.querySelector('#standings-body tr');
-        return Array.from(row.querySelectorAll('td')).map((cell) => cell.textContent.trim());
-    });
-    assert.equal(spartakRow[9], '4', 'Спартак: победа и ничья');
+    assert.equal(zenitPoints, after.points[5], 'очки новой команды видны в таблице');
 
     // Данные переживают перезагрузку страницы
     await reloadApp(page);
-    assert.equal(await textOf(page, '#stat-teams'), '5');
-    assert.equal(await textOf(page, '#stat-finished'), '3');
+    assert.equal(await textOf(page, '#stat-teams'), String(before.teams + 1));
+    assert.equal(await textOf(page, '#stat-finished'), String(before.finished + 1));
 
     // Выход из админки
     await page.click('[data-nav="admin"]');
@@ -453,18 +562,18 @@ test('синхронизация: посетитель видит данные �
     mockRepository.state.sha = 'sha-1';
     mockRepository.state.commits.length = 0;
 
-    // 1. Посетитель открывает сайт — данные приходят из репозитория, а не из его браузера
-    const visitor = await openPage({ url: mockBaseUrl + '/' });
+    // 1. Посетитель открывает сайт с другого устройства — данные приходят из репозитория
+    const visitor = await openPage({ url: mockBaseUrl + '/', isolated: true });
 
-    assert.equal(await textOf(visitor.page, '#stat-teams'), '5');
+    assert.equal(await textOf(visitor.page, '#stat-teams'), String(remote.teams.length));
     assert.match(await textOf(visitor.page, '#teams-grid'), /Клуб из репозитория/);
     assert.match(await textOf(visitor.page, '#data-freshness'), /Данные обновлены: 10 сентября 2026/);
     assert.deepEqual(visitor.problems, []);
     assert.deepEqual(await visitor.page.evaluate(() => window.__cspViolations), []);
-    await visitor.page.close();
+    await visitor.close();
 
     // 2. Администратор публикует новый клуб
-    const admin = await openPage({ url: mockBaseUrl + '/' });
+    const admin = await openPage({ url: mockBaseUrl + '/', isolated: true });
 
     await clickWhenReady(admin.page, '[data-nav="admin"]');
     await admin.page.type('#admin-password', 'admin');
@@ -472,25 +581,27 @@ test('синхронизация: посетитель видит данные �
     await admin.page.waitForFunction(() => window.FTApp && window.FTApp.isAdmin());
 
     // Блок «Настройки» скрыт по умолчанию — открываем его кнопкой в шапке панели
-    await clickWhenReady(admin.page, '[data-action="toggle-settings"]');
+    await clickInView(admin.page, '[data-action="toggle-settings"]');
     await admin.page.type('#github-token', 'test-token');
-    await clickWhenReady(admin.page, '[data-action="github-save-token"]');
+    await clickInView(admin.page, '[data-action="github-save-token"]');
     await admin.page.waitForFunction(() => document.getElementById('github-token').placeholder.includes('сохранён'));
 
     await admin.page.type('#new-team-name', 'Опубликовано из админки');
-    await clickWhenReady(admin.page, '[data-form="add-team"] button[type="submit"]');
-    await admin.page.waitForFunction(() => document.querySelectorAll('#admin-teams-body tr').length === 6);
+    await clickInView(admin.page, '[data-form="add-team"] button[type="submit"]');
+    await admin.page.waitForFunction((expected) => {
+        return document.querySelectorAll('#admin-teams-list [data-action="team-open"]').length === expected;
+    }, {}, remote.teams.length + 1);
 
-    await clickWhenReady(admin.page, '[data-action="github-publish"]');
+    await clickInView(admin.page, '[data-action="github-publish"]');
     await admin.page.waitForFunction(() => document.getElementById('sync-status').textContent.includes('Опубликовано'));
 
     assert.equal(mockRepository.state.commits.length, 1, 'создан один коммит');
-    assert.equal(mockRepository.state.data.teams.length, 6);
+    assert.equal(mockRepository.state.data.teams.length, remote.teams.length + 1);
     assert.equal(mockRepository.state.data.teams.some((team) => team.name === 'Опубликовано из админки'), true);
 
     // Повторное нажатие «Опубликовать» без изменений не должно показывать ошибку
     // (раньше в такой ситуации появлялось тревожное сообщение про «версию из репозитория»)
-    await clickWhenReady(admin.page, '[data-action="github-publish"]');
+    await clickInView(admin.page, '[data-action="github-publish"]');
     await admin.page.waitForFunction(
         () => !document.getElementById('sync-status').textContent.includes('Публикуем')
     );
@@ -501,7 +612,7 @@ test('синхронизация: посетитель видит данные �
     assert.equal(mockRepository.state.commits.length, 1, 'лишний коммит не создан');
 
     assert.deepEqual(admin.problems, []);
-    await admin.page.close();
+    await admin.close();
 
     // 3. «Другое устройство»: чистое хранилище — данные должны прийти из репозитория
     const otherContext = await createIsolatedContext();
@@ -513,7 +624,7 @@ test('синхронизация: посетитель видит данные �
 
     await gotoApp(otherPage, mockBaseUrl + '/');
 
-    assert.equal(await textOf(otherPage, '#stat-teams'), '6', 'другое устройство получило опубликованные данные');
+    assert.equal(await textOf(otherPage, '#stat-teams'), String(remote.teams.length + 1), 'другое устройство получило опубликованные данные');
     assert.match(await textOf(otherPage, '#teams-grid'), /Опубликовано из админки/);
     assert.match(await textOf(otherPage, '#data-freshness'), /10 сентября 2026|сентября 2026/);
 

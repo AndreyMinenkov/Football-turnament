@@ -41,6 +41,10 @@
         editingTeamId: null,
         editingMatchId: null,
         editingPlayer: null,
+        /** Открытая команда в разделе «Команды» (null — показывается список команд). */
+        selectedTeamId: null,
+        /** Открытый матч в разделе «Матчи» (null — показывается список матчей). */
+        openMatchId: null,
         /** Открытый раздел админки: «Команды» или «Матчи» (см. ADMIN_TABS). */
         adminTab: 'teams'
     };
@@ -1077,130 +1081,337 @@
         }).join('');
     }
 
-    /** Таблица команд с возможностью переименования и удаления. */
+    /**
+     * Раздел «Команды»: список кликабельных команд либо карточка выбранной команды
+     * (состав, добавление игрока, переименование и удаление команды).
+     */
     function renderAdminTeams() {
-        var body = $('admin-teams-body');
+        var listView = $('admin-team-list-view');
+        var teamView = $('admin-team-view');
+        var list = $('admin-teams-list');
+        var team = L.findTeam(state.data.teams, state.selectedTeamId);
 
-        if (!body) {
+        if (!team) {
+            state.selectedTeamId = null;
+        }
+
+        if (listView) {
+            listView.hidden = Boolean(team);
+        }
+
+        if (teamView) {
+            teamView.hidden = !team;
+        }
+
+        if (!list) {
             return;
         }
 
         if (!state.data.teams.length) {
-            body.innerHTML = '<tr><td colspan="4" class="admin-hint py-6 text-center">Команды ещё не добавлены</td></tr>';
+            list.innerHTML = '<p class="admin-hint py-4">Команды ещё не добавлены — добавьте первую ниже.</p>';
             return;
         }
 
-        body.innerHTML = state.data.teams.map(function (team) {
-            var isEditing = state.editingTeamId === team.id;
-            var nameCell = isEditing
-                ? '<input type="text" id="team-rename-input" class="admin-input" maxlength="' + CONFIG.maxTeamNameLength +
-                    '" value="' + esc(team.name) + '" aria-label="Новое название команды">'
-                : '<div class="flex items-center gap-3">' + teamBadge(team, true) +
-                    '<span class="font-medium">' + esc(team.name) + '</span></div>';
-
-            var actions = isEditing
-                ? '<div class="flex flex-wrap gap-2">' +
-                    '<button type="button" class="btn btn-sm btn-primary" data-action="team-save" data-id="' + team.id + '">' +
-                        icon('check') + 'Сохранить</button>' +
-                    '<button type="button" class="btn btn-sm btn-ghost" data-action="team-cancel-edit" data-id="' + team.id + '">Отмена</button>' +
-                  '</div>'
-                : '<div class="flex flex-wrap gap-2">' +
-                    '<button type="button" class="btn btn-sm btn-ghost btn-icon" data-action="team-rename" data-id="' + team.id + '" title="Переименовать команду">' +
-                        icon('pencil') + '<span class="btn-text">Изменить</span></button>' +
-                    '<button type="button" class="btn btn-sm btn-danger btn-icon" data-action="team-delete" data-id="' + team.id + '" title="Удалить команду">' +
-                        icon('trash') + '<span class="btn-text">Удалить</span></button>' +
-                  '</div>';
-
+        list.innerHTML = state.data.teams.map(function (item) {
+            var playersCount = (item.players || []).length;
             var matchesCount = state.data.matches.filter(function (match) {
-                return match.teamA === team.id || match.teamB === team.id;
+                return L.toInt(match.teamA) === item.id || L.toInt(match.teamB) === item.id;
             }).length;
 
-            return '<tr>' +
-                '<td>' + nameCell + '</td>' +
-                '<td class="num" data-label="Игроков">' + (team.players || []).length + '</td>' +
-                '<td class="num" data-label="Матчей">' + matchesCount + '</td>' +
-                '<td class="admin-actions">' + actions + '</td>' +
-            '</tr>';
+            return '<button type="button" class="admin-row" data-action="team-open" data-id="' + item.id + '">' +
+                '<span class="flex items-center gap-3 min-w-0">' + teamBadge(item, true) +
+                    '<span class="font-medium truncate">' + esc(item.name) + '</span>' +
+                '</span>' +
+                '<span class="admin-row-meta">' +
+                    '<span class="admin-row-count">' + icon('users') + playersCount + '</span>' +
+                    '<span class="admin-row-count">' + icon('calendar') + matchesCount + '</span>' +
+                    icon('back', 'admin-row-arrow') +
+                '</span>' +
+            '</button>';
         }).join('');
+
+        renderAdminTeamCard(team);
     }
 
-    /** Таблица матчей: ввод/правка счёта, переоткрытие, редактирование, удаление. */
-    function renderAdminMatches() {
-        var body = $('admin-matches-body');
-
-        if (!body) {
-            return;
-        }
-
-        var matches = L.sortMatches(state.data.matches, 'desc');
-
-        if (!matches.length) {
-            body.innerHTML = '<tr><td colspan="5" class="admin-hint py-6 text-center">Матчи ещё не добавлены</td></tr>';
-            return;
-        }
-
-        body.innerHTML = matches.map(function (match) {
-            var teamA = L.getTeamName(state.data.teams, match.teamA);
-            var teamB = L.getTeamName(state.data.teams, match.teamB);
-
-            return '<tr>' +
-                '<td class="whitespace-nowrap" data-label="Дата">' + esc(L.formatDate(match.date, 'numeric')) + '</td>' +
-                '<td>' + esc(teamA) + ' — ' + esc(teamB) + '</td>' +
-                '<td class="num" data-label="Счёт">' +
-                    '<div class="inline-flex items-center gap-1">' +
-                        '<input type="number" min="0" max="' + CONFIG.maxScore + '" step="1" class="admin-score" id="score-a-' +
-                            match.id + '" value="' + (match.scoreA === null ? '' : match.scoreA) +
-                            '" aria-label="Счёт команды ' + esc(teamA) + '">' +
-                        '<span class="admin-muted">:</span>' +
-                        '<input type="number" min="0" max="' + CONFIG.maxScore + '" step="1" class="admin-score" id="score-b-' +
-                            match.id + '" value="' + (match.scoreB === null ? '' : match.scoreB) +
-                            '" aria-label="Счёт команды ' + esc(teamB) + '">' +
-                    '</div>' +
-                '</td>' +
-                '<td class="num" data-label="Статус">' + statusPill(match) + '</td>' +
-                '<td class="admin-actions">' +
-                    '<div class="flex flex-wrap gap-2 justify-end">' +
-                        '<button type="button" class="btn btn-sm btn-primary" data-action="match-save-score" data-id="' +
-                            match.id + '">' + icon('check') + 'Сохранить счёт</button>' +
-                        (match.finished
-                            ? '<button type="button" class="btn btn-sm btn-ghost btn-icon" data-action="match-reopen" data-id="' +
-                                match.id + '" title="Переоткрыть матч">' + icon('undo') + '<span class="btn-text">Переоткрыть</span></button>'
-                            : '') +
-                        '<button type="button" class="btn btn-sm btn-ghost btn-icon" data-action="match-edit" data-id="' +
-                            match.id + '" title="Изменить матч">' + icon('pencil') + '<span class="btn-text">Изменить</span></button>' +
-                        '<button type="button" class="btn btn-sm btn-danger btn-icon" data-action="match-delete" data-id="' +
-                            match.id + '" title="Удалить матч">' + icon('trash') + '<span class="btn-text">Удалить</span></button>' +
-                    '</div>' +
-                '</td>' +
-            '</tr>';
-        }).join('');
-    }
-
-    /** Список игроков выбранной команды. */
-    function renderAdminPlayers() {
-        var container = $('admin-players-list');
-        var select = $('player-team-select');
-
-        if (!container || !select) {
-            return;
-        }
-
-        var team = L.findTeam(state.data.teams, L.toInt(select.value));
-        var title = $('admin-players-team');
-
-        if (title) {
-            title.textContent = team ? team.name : 'команда не выбрана';
-        }
+    /** Шапка карточки команды: название и действия «переименовать» / «удалить». */
+    function renderAdminTeamCard(team) {
+        var title = $('admin-team-title');
+        var actions = $('admin-team-actions');
 
         if (!team) {
-            container.innerHTML = state.data.teams.length
-                ? '<p class="admin-hint py-4">Выберите команду, чтобы увидеть состав</p>'
-                : '<p class="admin-hint py-4">Сначала добавьте хотя бы одну команду</p>';
+            return;
+        }
+
+        if (title) {
+            title.textContent = team.name;
+        }
+
+        if (!actions) {
+            return;
+        }
+
+        if (state.editingTeamId === team.id) {
+            actions.innerHTML =
+                '<input type="text" id="team-rename-input" class="admin-input team-rename" maxlength="' +
+                    CONFIG.maxTeamNameLength + '" value="' + esc(team.name) + '" aria-label="Новое название команды">' +
+                '<button type="button" class="btn btn-primary" data-action="team-save" data-id="' + team.id + '">' +
+                    icon('check') + 'Сохранить</button>' +
+                '<button type="button" class="btn btn-ghost" data-action="team-cancel-edit" data-id="' + team.id + '">Отмена</button>';
+            return;
+        }
+
+        actions.innerHTML =
+            '<button type="button" class="btn btn-ghost" data-action="team-rename" data-id="' + team.id + '">' +
+                icon('pencil') + 'Переименовать</button>' +
+            '<button type="button" class="btn btn-danger" data-action="team-delete" data-id="' + team.id + '">' +
+                icon('trash') + 'Удалить команду</button>';
+    }
+
+    /* --- Открытие команды и возврат к списку --- */
+
+    function openTeam(teamId) {
+        state.selectedTeamId = L.toInt(teamId);
+        state.editingTeamId = null;
+        state.editingPlayer = null;
+        renderAdminTeams();
+        renderAdminPlayers();
+
+        if (typeof window.scrollTo === 'function') {
+            window.scrollTo(0, 0);
+        }
+    }
+
+    function closeTeam() {
+        state.selectedTeamId = null;
+        state.editingTeamId = null;
+        state.editingPlayer = null;
+        renderAdminTeams();
+        renderAdminPlayers();
+    }
+
+    /**
+     * Раздел «Матчи»: список матчей (сначала прошедшие, затем предстоящие)
+     * либо карточка выбранного матча со счётом, голами и голевыми передачами.
+     */
+    function renderAdminMatches() {
+        var listView = $('admin-match-list-view');
+        var matchView = $('admin-match-view');
+        var list = $('admin-matches-list');
+        var match = findMatch(state.openMatchId);
+
+        if (!match) {
+            state.openMatchId = null;
+        }
+
+        if (listView) {
+            listView.hidden = Boolean(match);
+        }
+
+        if (matchView) {
+            matchView.hidden = !match;
+        }
+
+        if (match && list) {
+            renderAdminMatchCard(match);
+            return;
+        }
+
+        if (!list) {
+            return;
+        }
+
+        var groups = L.groupMatchesForAdmin(state.data.matches);
+
+        if (!groups.all.length) {
+            list.innerHTML = '<p class="admin-hint py-4">Матчи ещё не добавлены — добавьте первый ниже.</p>';
+            return;
+        }
+
+        var parts = [];
+
+        var appendGroup = function (title, matches) {
+            if (!matches.length) {
+                return;
+            }
+
+            parts.push('<p class="admin-hint uppercase tracking-wide mt-2 mb-1">' + esc(title) + '</p>');
+            matches.forEach(function (item) {
+                parts.push(matchListRow(item));
+            });
+        };
+
+        appendGroup('Прошедшие', groups.finished);
+        appendGroup('Предстоящие', groups.upcoming);
+
+        list.innerHTML = parts.join('');
+    }
+
+    /** Строка матча в списке: дата, «Добрик 2 : 1 Оля», статус и число записанных голов. */
+    function matchListRow(match) {
+        var teamA = L.getTeamName(state.data.teams, match.teamA);
+        var teamB = L.getTeamName(state.data.teams, match.teamB);
+        var score = L.isFinished(match)
+            ? '<span class="admin-row-score">' + match.scoreA + ' : ' + match.scoreB + '</span>'
+            : '<span class="admin-row-score admin-muted">—</span>';
+        var goals = L.countTeamEvents(match.events, match.teamA, 'goal') +
+            L.countTeamEvents(match.events, match.teamB, 'goal');
+
+        return '<button type="button" class="admin-row" data-action="match-open" data-id="' + match.id + '">' +
+            '<span class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 min-w-0">' +
+                '<span class="admin-hint whitespace-nowrap">' + esc(L.formatDate(match.date, 'numeric')) + '</span>' +
+                '<span class="truncate font-medium">' + esc(teamA) + ' ' + score + ' ' + esc(teamB) + '</span>' +
+            '</span>' +
+            '<span class="admin-row-meta">' +
+                statusPill(match) +
+                (goals ? '<span class="admin-row-count">' + icon('ball') + goals + '</span>' : '') +
+                icon('back', 'admin-row-arrow') +
+            '</span>' +
+        '</button>';
+    }
+
+    /** Карточка матча: счёт, состав обеих команд и отметки голов и пасов. */
+    function renderAdminMatchCard(match) {
+        var scoreBox = $('admin-match-score');
+        var eventsBox = $('admin-match-events');
+        var actionsBox = $('admin-match-actions');
+
+        if (!scoreBox || !eventsBox || !actionsBox) {
+            return;
+        }
+
+        var teamA = L.findTeam(state.data.teams, match.teamA);
+        var teamB = L.findTeam(state.data.teams, match.teamB);
+        var nameA = teamA ? teamA.name : 'Неизвестная команда';
+        var nameB = teamB ? teamB.name : 'Неизвестная команда';
+        var goalsA = L.countTeamEvents(match.events, match.teamA, 'goal');
+        var goalsB = L.countTeamEvents(match.events, match.teamB, 'goal');
+        var hint = L.isFinished(match)
+            ? 'Записано голов: ' + (goalsA + goalsB) + ' из ' + (match.scoreA + match.scoreB) +
+                ' — мяч отмечает гол, бутса голевой пас'
+            : 'Счёт ещё не введён, но голы и голевые передачи можно отметить уже сейчас.';
+
+        scoreBox.innerHTML =
+            '<div class="flex flex-wrap items-center justify-between gap-2 mb-3">' +
+                '<span class="admin-hint">' + esc(L.formatDate(match.date, 'long')) + '</span>' +
+                statusPill(match) +
+            '</div>' +
+            '<div class="admin-score-line">' +
+                '<span class="admin-score-team">' + esc(nameA) + '</span>' +
+                scoreInput(match, 'a', nameA) +
+                '<span class="admin-muted">:</span>' +
+                scoreInput(match, 'b', nameB) +
+                '<span class="admin-score-team">' + esc(nameB) + '</span>' +
+            '</div>' +
+            '<div class="flex flex-wrap items-center gap-3 mt-3">' +
+                '<button type="button" class="btn btn-primary" data-action="match-save-score" data-id="' + match.id + '">' +
+                    icon('check') + 'Сохранить счёт</button>' +
+                '<span class="admin-hint">' + hint + '</span>' +
+            '</div>';
+
+        eventsBox.innerHTML = matchTeamColumn(match, teamA, match.teamA, nameA) +
+            matchTeamColumn(match, teamB, match.teamB, nameB);
+
+        actionsBox.innerHTML =
+            (L.isFinished(match)
+                ? '<button type="button" class="btn btn-ghost" data-action="match-reopen" data-id="' + match.id + '">' +
+                    icon('undo') + 'Переоткрыть матч</button>'
+                : '') +
+            '<button type="button" class="btn btn-ghost" data-action="match-edit" data-id="' + match.id + '">' +
+                icon('pencil') + 'Изменить команды и дату</button>' +
+            '<button type="button" class="btn btn-danger" data-action="match-delete" data-id="' + match.id + '">' +
+                icon('trash') + 'Удалить матч</button>';
+    }
+
+    /** Поле счёта одной команды в карточке матча. */
+    function scoreInput(match, side, teamName) {
+        var value = side === 'a' ? match.scoreA : match.scoreB;
+
+        return '<input type="number" min="0" max="' + CONFIG.maxScore + '" step="1" class="admin-score" id="score-' +
+            side + '-' + match.id + '" value="' + (value === null ? '' : value) +
+            '" aria-label="Счёт команды ' + esc(teamName) + '">';
+    }
+
+    /** Колонка одной команды в карточке матча: игроки и кнопки «гол» / «пас». */
+    function matchTeamColumn(match, team, teamId, teamName) {
+        var players = L.matchSquad(team, match.events, teamId);
+        var rows = players.length
+            ? players.map(function (player) {
+                return matchPlayerRow(match, teamId, player);
+            }).join('')
+            : '<p class="admin-hint py-1">Состав пуст — добавьте игроков в разделе «Команды».</p>';
+
+        return '<div>' +
+            '<p class="admin-hint uppercase tracking-wide mb-2">' + esc(teamName) + '</p>' +
+            rows +
+        '</div>';
+    }
+
+    /** Строка игрока: имя и две отметки — мяч (гол) и бутса (голевой пас). */
+    function matchPlayerRow(match, teamId, player) {
+        var goals = L.playerEventCount(match.events, teamId, player, 'goal');
+        var assists = L.playerEventCount(match.events, teamId, player, 'assist');
+
+        return '<div class="event-row">' +
+            '<span class="truncate">' + esc(player) + '</span>' +
+            '<span class="event-actions">' +
+                eventButton(match.id, teamId, player, 'goal', goals) +
+                eventButton(match.id, teamId, player, 'assist', assists) +
+                (goals + assists
+                    ? '<button type="button" class="event-btn event-btn-undo" data-action="match-event-undo" data-id="' +
+                        match.id + '" data-team="' + teamId + '" data-player="' + esc(player) +
+                        '" title="Убрать последнюю запись">' + icon('undo') + '</button>'
+                    : '') +
+            '</span>' +
+        '</div>';
+    }
+
+    /** Кнопка отметки: неактивная — записи нет, активная — показывает количество. */
+    function eventButton(matchId, teamId, player, type, count) {
+        var label = L.eventLabel(type);
+
+        return '<button type="button" class="event-btn' + (count ? ' is-active' : '') + '"' +
+            ' data-action="match-event" data-id="' + matchId + '" data-team="' + teamId +
+            '" data-player="' + esc(player) + '" data-type="' + type + '"' +
+            ' aria-pressed="' + (count ? 'true' : 'false') + '" title="' + esc(label) + '"' +
+            ' aria-label="' + esc(label) + ': ' + esc(player) + '">' +
+            icon(type === 'goal' ? 'ball' : 'boot') +
+            (count ? '<span class="event-count">' + count + '</span>' : '') +
+        '</button>';
+    }
+
+    /* --- Открытие матча и возврат к списку --- */
+
+    function openMatch(matchId) {
+        state.openMatchId = L.toInt(matchId);
+        renderAdminMatches();
+
+        if (typeof window.scrollTo === 'function') {
+            window.scrollTo(0, 0);
+        }
+    }
+
+    function closeMatch() {
+        state.openMatchId = null;
+        renderAdminMatches();
+    }
+
+    /** Состав выбранной команды: игроки, переименование и удаление. */
+    function renderAdminPlayers() {
+        var container = $('admin-players-list');
+
+        if (!container) {
+            return;
+        }
+
+        var team = L.findTeam(state.data.teams, state.selectedTeamId);
+
+        if (!team) {
+            container.innerHTML = '<p class="admin-hint py-2">Откройте команду в списке выше, чтобы работать с составом.</p>';
             return;
         }
 
         if (!team.players.length) {
-            container.innerHTML = '<p class="admin-hint py-4">В команде «' + esc(team.name) + '» пока нет игроков</p>';
+            container.innerHTML = '<p class="admin-hint py-2">В команде «' + esc(team.name) + '» пока нет игроков</p>';
             return;
         }
 
@@ -1232,7 +1443,7 @@
     }
 
     /**
-     * Заполняет выпадающие списки админки (команды для матчей и игроков).
+     * Заполняет выпадающие списки команд в форме матча.
      * Текущий выбор сохраняется, если команда ещё существует
      * (раньше список пересоздавался и выделение сбрасывалось).
      */
@@ -1257,19 +1468,6 @@
                 select.value = previous;
             }
         });
-
-        var playerSelect = $('player-team-select');
-
-        if (playerSelect) {
-            var previousTeam = playerSelect.value;
-
-            playerSelect.innerHTML = '<option value="">Выберите команду…</option>' + options;
-            playerSelect.disabled = !state.data.teams.length;
-
-            if (previousTeam && L.findTeam(state.data.teams, previousTeam)) {
-                playerSelect.value = previousTeam;
-            }
-        }
     }
 
     /* ================================================================== */
@@ -1445,6 +1643,8 @@
         state.editingTeamId = null;
         state.editingMatchId = null;
         state.editingPlayer = null;
+        state.selectedTeamId = null;
+        state.openMatchId = null;
         // Следующий вход начинается с раздела «Команды»
         state.adminTab = DEFAULT_ADMIN_TAB;
         writeAdminSession(false);
@@ -1561,6 +1761,10 @@
 
         setFieldError('match-form-error', '');
 
+        // Форма живёт в списке матчей: закрываем карточку, чтобы она была видна
+        state.openMatchId = null;
+        renderAdminMatches();
+
         if (typeof window.scrollTo === 'function') {
             window.scrollTo(0, 0);
         }
@@ -1662,6 +1866,14 @@
             state.editingPlayer = null;
         }
 
+        if (state.editingTeamId === team.id) {
+            state.editingTeamId = null;
+        }
+
+        if (state.selectedTeamId === team.id) {
+            state.selectedTeamId = null;
+        }
+
         saveData('Команда «' + team.name + '» удалена');
     }
 
@@ -1717,7 +1929,42 @@
     }
 
     /**
-     * Сохранение счёта прямо в строке таблицы матчей.
+     * Отметка в карточке матча: игрок забил гол или отдал голевую передачу.
+     * Повторное нажатие добавляет ещё одну такую же запись (дубль, второй пас).
+     */
+    function recordMatchEvent(matchId, teamId, player, type) {
+        var match = findMatch(matchId);
+
+        if (!match) {
+            toast('Матч не найден', 'error');
+            return;
+        }
+
+        if (!L.isEventType(type) || !player) {
+            return;
+        }
+
+        var team = L.findTeam(state.data.teams, teamId);
+
+        match.events = L.addEvent(match.events, teamId, player, type);
+
+        saveData(L.eventLabel(type) + ': ' + player + (team ? ' (' + team.name + ')' : ''));
+    }
+
+    /** Убирает последнюю запись игрока в матче. */
+    function undoMatchEvent(matchId, teamId, player) {
+        var match = findMatch(matchId);
+
+        if (!match || !player) {
+            return;
+        }
+
+        match.events = L.removeLastEvent(match.events, teamId, player);
+        saveData('Запись игрока «' + player + '» убрана');
+    }
+
+    /**
+     * Сохранение счёта в карточке матча.
      * Пустые поля переводят матч в статус «предстоит» (счёт стирается).
      */
     function saveMatchScore(matchId) {
@@ -1789,6 +2036,10 @@
             resetMatchForm();
         }
 
+        if (state.openMatchId === match.id) {
+            state.openMatchId = null;
+        }
+
         saveData('Матч удалён');
     }
 
@@ -1799,12 +2050,11 @@
     function handleAddPlayer(event) {
         event.preventDefault();
 
-        var select = $('player-team-select');
         var input = $('new-player-name');
-        var team = L.findTeam(state.data.teams, select ? select.value : null);
+        var team = L.findTeam(state.data.teams, state.selectedTeamId);
 
         if (!team) {
-            setFieldError('player-form-error', 'Выберите команду');
+            setFieldError('player-form-error', 'Сначала откройте команду в списке');
             return;
         }
 
@@ -1857,7 +2107,17 @@
             return;
         }
 
+        var oldName = team.players[index];
         team.players[index] = check.value;
+
+        // Записи игрока в матчах (голы и пасы) переносим на новое имя,
+        // иначе в карточке матча появился бы «старый» игрок
+        state.data.matches.forEach(function (match) {
+            if (L.toInt(match.teamA) === team.id || L.toInt(match.teamB) === team.id) {
+                match.events = L.renamePlayerEvents(match.events, team.id, oldName, check.value);
+            }
+        });
+
         state.editingPlayer = null;
         saveData('Имя игрока изменено');
     }
@@ -1891,6 +2151,8 @@
         state.editingTeamId = null;
         state.editingMatchId = null;
         state.editingPlayer = null;
+        state.selectedTeamId = null;
+        state.openMatchId = null;
 
         saveData('Загружены демонстрационные данные');
     }
@@ -1913,6 +2175,8 @@
         state.editingTeamId = null;
         state.editingMatchId = null;
         state.editingPlayer = null;
+        state.selectedTeamId = null;
+        state.openMatchId = null;
 
         saveData('Данные загружены из файла');
 
@@ -1967,6 +2231,18 @@
             resetData();
         } else if (action === 'team-rename') {
             startTeamRename(id);
+        } else if (action === 'team-open') {
+            openTeam(id);
+        } else if (action === 'team-back') {
+            closeTeam();
+        } else if (action === 'match-open') {
+            openMatch(id);
+        } else if (action === 'match-back') {
+            closeMatch();
+        } else if (action === 'match-event') {
+            recordMatchEvent(id, teamId, element.getAttribute('data-player'), element.getAttribute('data-type'));
+        } else if (action === 'match-event-undo') {
+            undoMatchEvent(id, teamId, element.getAttribute('data-player'));
         } else if (action === 'team-save') {
             saveTeamRename(id);
         } else if (action === 'team-cancel-edit') {
@@ -2034,10 +2310,7 @@
             return;
         }
 
-        if (target.id === 'player-team-select') {
-            state.editingPlayer = null;
-            renderAdminPlayers();
-        } else if (target.id === 'github-auto') {
+        if (target.id === 'github-auto') {
             sync.autoPublish = Boolean(target.checked);
             writeStoredValue(KEYS.autoPublish, sync.autoPublish ? '1' : '0');
             renderSyncStatus();

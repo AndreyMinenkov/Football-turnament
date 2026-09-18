@@ -591,6 +591,141 @@
     /* Активная кнопка раздела — .btn-primary, остальные — .btn-ghost;
        переключение делает renderAdminTabs() в assets/js/app.js */
 
+    /* --- Кликабельные строки списков админки (команды и матчи) --- */
+    .admin-row {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        background: #3c4043;
+        border: 1px solid #5f6368;
+        border-radius: 4px;
+        color: #e8eaed;
+        text-align: left;
+        cursor: pointer;
+        transition: background 0.2s, border-color 0.2s;
+    }
+
+    .admin-row:hover {
+        background: #4a4f53;
+        border-color: #80868b;
+    }
+
+    .admin-row-meta {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex: none;
+        font-size: 0.75rem;
+        color: #bdc1c6;
+    }
+
+    .admin-row-count {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    /* Счёт в строке матча: «Добрик 2 : 1 Оля» */
+    .admin-row-score {
+        font-weight: 700;
+        color: #fff;
+        white-space: nowrap;
+    }
+
+    /* Стрелка «открыть» — та же иконка, что и «назад», но в другую сторону */
+    .admin-row-arrow {
+        color: #9aa0a6;
+        transform: rotate(180deg);
+    }
+
+    /* --- Карточка матча: счёт, голы и голевые передачи --- */
+    .admin-score-line {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        text-align: center;
+    }
+
+    .admin-score-team {
+        font-weight: 700;
+        color: #fff;
+        max-width: 10rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .event-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        min-width: 0;
+        padding: 0.35rem 0;
+        border-bottom: 1px solid #4a4f53;
+    }
+
+    .event-row:last-child {
+        border-bottom: 0;
+    }
+
+    .event-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+        flex: none;
+    }
+
+    /* Отметки игрока: серая иконка — записи нет, зелёная — есть (с количеством) */
+    .event-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.2rem;
+        min-width: 2rem;
+        height: 2rem;
+        padding: 0 0.35rem;
+        background: #202124;
+        border: 1px solid #5f6368;
+        border-radius: 4px;
+        color: #9aa0a6;
+        font-size: 0.75rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s, border-color 0.2s, color 0.2s;
+    }
+
+    .event-btn .icon {
+        width: 1.1rem;
+        height: 1.1rem;
+    }
+
+    .event-btn:hover {
+        border-color: #80868b;
+        color: #e8eaed;
+    }
+
+    .event-btn.is-active {
+        background: #1b5e20;
+        border-color: #2e7d32;
+        color: #fff;
+    }
+
+    .event-btn-undo {
+        min-width: 1.75rem;
+        color: #80868b;
+    }
+
+    /* Переименование команды в карточке */
+    .team-rename {
+        max-width: 14rem;
+    }
+
     /* --- Пустое состояние --- */
     .empty-state {
         text-align: center;
@@ -738,6 +873,27 @@
     .admin-table .btn-icon .icon {
         width: 1rem;
         height: 1rem;
+    }
+
+    /* --- Отметки голов и голевых пасов: 40×40 — удобно нажимать пальцем --- */
+    .event-btn {
+        min-width: 2.5rem;
+        height: 2.5rem;
+        font-size: 0.8125rem;
+    }
+
+    .event-btn .icon {
+        width: 1.25rem;
+        height: 1.25rem;
+    }
+
+    /* Названия команд в счёте и поле переименования не выходят за экран */
+    .admin-score-team {
+        max-width: 6.5rem;
+    }
+
+    .team-rename {
+        max-width: none;
     }
 
     /* --- Турнирная таблица: компактный вид по умолчанию (номер, команда, И, РМ, О) --- */

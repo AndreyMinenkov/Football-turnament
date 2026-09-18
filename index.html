@@ -29,7 +29,7 @@
 
     <!-- Стили: файл Tailwind собирается заранее (npm run build:css), шрифт Roboto — локальный.
          ?v= — метка версии: после обновления сайта браузеры сразу берут свежие файлы, а не кэш. -->
-    <link rel="stylesheet" href="assets/css/tailwind.css?v=6">
+    <link rel="stylesheet" href="assets/css/tailwind.css?v=8">
 </head>
 <body class="font-sans bg-dark-50 text-dark-900 antialiased">
 
@@ -109,6 +109,20 @@
         <symbol id="i-lock" viewBox="0 0 24 24">
             <rect x="5" y="10" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/>
             <path d="M8.5 10V8a3.5 3.5 0 0 1 7 0v2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="i-back" viewBox="0 0 24 24">
+            <path d="M14.5 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <!-- Гол: футбольный мяч -->
+        <symbol id="i-ball" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.7"/>
+            <path d="M12 7.6l3.2 2.4-1.2 3.8h-4L8.8 10z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+            <path d="M12 3.6v4M3.9 10l4.9 0M6.7 19.2l2.1-5.4M17.3 19.2l-2.1-5.4M20.1 10l-4.9 0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+        </symbol>
+        <!-- Голевая передача: бутса -->
+        <symbol id="i-boot" viewBox="0 0 24 24">
+            <path d="M3.5 18.5V6.5h3.2l1.5 2.6h3.4l3.1 2.3 4.7 1.3a1.4 1.4 0 0 1 1 1.3v4.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+            <path d="M6.6 18.5v2.2M12 18.5v2.2M17.4 18.5v2.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
         </symbol>
     </svg>
 
@@ -416,34 +430,52 @@
 
             <!-- ===================== Раздел «Команды» ===================== -->
             <div id="admin-panel-teams" class="admin-tabpanel" role="tabpanel" aria-labelledby="admin-tab-teams" data-admin-tabpanel="teams">
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <!-- Добавление команды -->
+            <!-- Список команд: нажмите название, чтобы открыть состав -->
+            <div id="admin-team-list-view">
                 <div class="admin-card">
                     <h3 class="admin-title">
-                        <svg class="icon" aria-hidden="true"><use href="#i-users"></use></svg>Добавить команду
+                        <svg class="icon" aria-hidden="true"><use href="#i-users"></use></svg>Команды
                     </h3>
-                    <form data-form="add-team" novalidate>
-                        <label class="field-label text-dark-200" for="new-team-name">Название команды</label>
-                        <input type="text" id="new-team-name" class="admin-input" placeholder="Например, Зенит" maxlength="30">
-                        <p id="team-form-error" class="field-error" role="alert"></p>
-                        <button type="submit" class="btn btn-primary w-full mt-3">
-                            <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>Создать
-                        </button>
-                    </form>
+                    <p class="admin-hint mb-3">Нажмите название команды, чтобы открыть её состав.</p>
+                    <div id="admin-teams-list" class="space-y-2"></div>
                 </div>
 
-                <!-- Игроки выбранной команды: добавление, переименование, удаление -->
-                <div class="admin-card lg:col-span-2">
+                <!-- Добавление команды -->
+                <div class="admin-card mt-4">
+                    <h3 class="admin-title">
+                        <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>Добавить команду
+                    </h3>
+                    <form data-form="add-team" class="grid grid-cols-1 md:grid-cols-3 gap-3" novalidate>
+                        <div class="md:col-span-2">
+                            <label class="field-label text-dark-200" for="new-team-name">Название команды</label>
+                            <input type="text" id="new-team-name" class="admin-input" placeholder="Например, Зенит" maxlength="30">
+                        </div>
+                        <div class="flex items-end">
+                            <button type="submit" class="btn btn-primary w-full">
+                                <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>Добавить команду
+                            </button>
+                        </div>
+                        <p id="team-form-error" class="field-error md:col-span-3" role="alert"></p>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Карточка команды: состав, переименование и удаление -->
+            <div id="admin-team-view" hidden>
+                <button type="button" class="btn btn-sm btn-ghost" data-action="team-back">
+                    <svg class="icon" aria-hidden="true"><use href="#i-back"></use></svg>Все команды
+                </button>
+
+                <div class="admin-card mt-3">
                     <h3 class="admin-title">
                         <svg class="icon" aria-hidden="true"><use href="#i-users"></use></svg>
-                        Игроки команды «<span id="admin-players-team">команда не выбрана</span>»
+                        <span id="admin-team-title">Команда не выбрана</span>
                     </h3>
+
+                    <div id="admin-team-actions" class="flex flex-wrap gap-2 mb-4"></div>
+
                     <form data-form="add-player" class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4" novalidate>
-                        <div>
-                            <label class="field-label text-dark-200" for="player-team-select">Команда</label>
-                            <select id="player-team-select" class="admin-input"></select>
-                        </div>
-                        <div>
+                        <div class="md:col-span-2">
                             <label class="field-label text-dark-200" for="new-player-name">Имя игрока</label>
                             <input type="text" id="new-player-name" class="admin-input" placeholder="Например, Иванов А." maxlength="40">
                         </div>
@@ -454,27 +486,8 @@
                         </div>
                         <p id="player-form-error" class="field-error md:col-span-3" role="alert"></p>
                     </form>
-                    <div id="admin-players-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2"></div>
-                </div>
-            </div>
 
-            <!-- Список команд -->
-            <div class="admin-card mt-4">
-                <h3 class="admin-title">
-                    <svg class="icon" aria-hidden="true"><use href="#i-trophy"></use></svg>Команды: переименование и удаление
-                </h3>
-                <div class="table-wrap">
-                    <table class="data-table admin-table">
-                        <thead>
-                            <tr>
-                                <th scope="col">Команда</th>
-                                <th class="num" scope="col">Игроков</th>
-                                <th class="num" scope="col">Матчей</th>
-                                <th scope="col">Действия</th>
-                            </tr>
-                        </thead>
-                        <tbody id="admin-teams-body"></tbody>
-                    </table>
+                    <div id="admin-players-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2"></div>
                 </div>
             </div>
 
@@ -482,8 +495,21 @@
 
             <!-- ====================== Раздел «Матчи» ====================== -->
             <div id="admin-panel-matches" class="admin-tabpanel" role="tabpanel" aria-labelledby="admin-tab-matches" data-admin-tabpanel="matches" hidden>
-            <!-- Добавление и изменение матча -->
+            <!-- Список матчей: сначала прошедшие, затем предстоящие -->
+            <div id="admin-match-list-view">
             <div class="admin-card">
+                <h3 class="admin-title">
+                    <svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg>Матчи
+                </h3>
+                <p class="admin-hint mb-3">
+                    Сначала прошедшие, затем предстоящие. Нажмите матч, чтобы внести счёт
+                    и отметить голы и голевые передачи.
+                </p>
+                <div id="admin-matches-list" class="space-y-3"></div>
+            </div>
+
+            <!-- Добавление и изменение матча -->
+            <div class="admin-card mt-4">
                 <h3 class="admin-title" id="match-form-title">
                     <svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg>Добавить матч
                 </h3>
@@ -525,24 +551,22 @@
                 </form>
             </div>
 
-            <!-- Список матчей -->
-            <div class="admin-card mt-4">
-                <h3 class="admin-title">
-                    <svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg>Матчи: результаты и правка
-                </h3>
-                <div class="table-wrap">
-                    <table class="data-table admin-table">
-                        <thead>
-                            <tr>
-                                <th scope="col">Дата</th>
-                                <th scope="col">Матч</th>
-                                <th class="num" scope="col">Счёт</th>
-                                <th class="num" scope="col">Статус</th>
-                                <th scope="col">Действия</th>
-                            </tr>
-                        </thead>
-                        <tbody id="admin-matches-body"></tbody>
-                    </table>
+            </div>
+
+            <!-- Карточка матча: счёт, голы и голевые передачи -->
+            <div id="admin-match-view" hidden>
+                <button type="button" class="btn btn-sm btn-ghost" data-action="match-back">
+                    <svg class="icon" aria-hidden="true"><use href="#i-back"></use></svg>Все матчи
+                </button>
+
+                <div class="admin-card mt-3">
+                    <!-- Названия команд и счёт: «Добрик 1 : Оля 2» -->
+                    <div id="admin-match-score" class="pb-4 mb-4 border-b border-dark-700"></div>
+
+                    <!-- Голы и голевые передачи игроков обеих команд -->
+                    <div id="admin-match-events" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+
+                    <div id="admin-match-actions" class="flex flex-wrap gap-2 mt-4"></div>
                 </div>
             </div>
             </div>
@@ -578,9 +602,9 @@
 
     <!-- Логика: настройки → чистая логика → синхронизация с репозиторием → слой DOM.
          ?v= — метка версии, чтобы после обновления сайта не использовался старый кэш. -->
-    <script src="assets/js/config.js?v=8" defer></script>
-    <script src="assets/js/logic.js?v=8" defer></script>
-    <script src="assets/js/sync.js?v=8" defer></script>
-    <script src="assets/js/app.js?v=8" defer></script>
+    <script src="assets/js/config.js?v=9" defer></script>
+    <script src="assets/js/logic.js?v=9" defer></script>
+    <script src="assets/js/sync.js?v=9" defer></script>
+    <script src="assets/js/app.js?v=9" defer></script>
 </body>
 </html>

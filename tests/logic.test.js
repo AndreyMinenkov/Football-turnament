@@ -335,8 +335,139 @@ test('данные старой версии сайта загружаются �
 
     assert.equal(loaded.repaired, false, 'перенос данных не требует исправлений');
     assert.deepEqual(loaded.data.teams, legacy.teams);
-    assert.deepEqual(loaded.data.matches, legacy.matches);
+
+    // Все поля матчей сохраняются один в один, события (их раньше не было) — пустые
+    assert.equal(loaded.data.matches.length, legacy.matches.length);
+    loaded.data.matches.forEach((match, index) => {
+        const source = legacy.matches[index];
+
+        assert.deepEqual(
+            {
+                id: match.id, teamA: match.teamA, teamB: match.teamB,
+                scoreA: match.scoreA, scoreB: match.scoreB, date: match.date, finished: match.finished
+            },
+            source
+        );
+        assert.deepEqual(match.events, [], 'у матчей старой версии нет голов и пасов');
+    });
+
     assert.deepEqual(L.getStats(loaded.data), { teams: 4, matches: 4, players: 9, finished: 2, upcoming: 2, goals: 5 });
+});
+
+test('события матча: голы и голевые передачи', () => {
+    let events = [];
+
+    events = L.addEvent(events, 2, 'Петров П.', 'goal');
+    events = L.addEvent(events, 2, 'Петров П.', 'assist');
+    events = L.addEvent(events, 1, 'Иванов А.', 'goal');
+    const twoGoals = L.addEvent(events, 1, 'Иванов А.', 'goal');
+
+    assert.equal(twoGoals.length, 4);
+    assert.equal(L.playerEventCount(twoGoals, 2, 'Петров П.', 'goal'), 1);
+    assert.equal(L.playerEventCount(twoGoals, 2, 'Петров П.', 'assist'), 1);
+    assert.equal(L.playerEventCount(twoGoals, 1, 'Иванов А.', 'goal'), 2);
+    assert.equal(L.playerEventCount(twoGoals, 1, 'иванов а.'), 2, 'без типа — все события игрока');
+    assert.equal(L.playerEventCount(twoGoals, 9, 'Иванов А.', 'goal'), 0, 'чужая команда — ничего');
+    assert.equal(L.countTeamEvents(twoGoals, 1), 2);
+    assert.equal(L.countTeamEvents(twoGoals, 1, 'assist'), 0);
+
+    // Некорректные записи не добавляются
+    assert.equal(L.addEvent(twoGoals, 1, '', 'goal').length, 4);
+    assert.equal(L.addEvent(twoGoals, 1, 'Иванов А.', 'карточка').length, 4);
+    assert.equal(L.addEvent(twoGoals, null, 'Иванов А.', 'goal').length, 4);
+
+    // Убирается последняя запись игрока, исходный список не меняется
+    const undone = L.removeLastEvent(twoGoals, 1, 'Иванов А.', 'goal');
+    assert.equal(L.playerEventCount(undone, 1, 'Иванов А.', 'goal'), 1);
+    assert.equal(twoGoals.length, 4, 'исходный список не мутируется');
+
+    assert.equal(L.isEventType('goal'), true);
+    assert.equal(L.isEventType('assist'), true);
+    assert.equal(L.isEventType('карточка'), false);
+    assert.equal(L.eventLabel('assist'), 'Голевой пас');
+});
+
+test('normalizeMatchEvents: остаются только корректные события команд матча', () => {
+    const match = { teamA: 1, teamB: 2 };
+    const result = L.normalizeMatchEvents([
+        { team: 1, player: 'Иванов А.', type: 'goal' },
+        { team: 2, player: '  Кузнецов К.  ', type: 'assist' },
+        { team: 3, player: 'Чужой', type: 'goal' },
+        { team: 1, player: '', type: 'goal' },
+        { team: 1, player: 'Петров П.', type: 'карточка' },
+        'мусор'
+    ], match);
+
+    assert.equal(result.repaired, true);
+    assert.deepEqual(result.events, [
+        { team: 1, player: 'Иванов А.', type: 'goal' },
+        { team: 2, player: 'Кузнецов К.', type: 'assist' }
+    ]);
+
+    assert.deepEqual(L.normalizeMatchEvents(undefined, match), { events: [], repaired: false });
+    assert.deepEqual(L.normalizeMatchEvents('нет', match), { events: [], repaired: true });
+});
+
+test('matchSquad: состав плюс игроки с записями, которых уже нет в заявке', () => {
+    const team = { id: 1, players: ['Иванов А.', 'Петров П.'] };
+    const events = [
+        { team: 1, player: 'Петров П.', type: 'goal' },
+        { team: 1, player: 'Ушедший У.', type: 'goal' },
+        { team: 2, player: 'Волков В.', type: 'goal' }
+    ];
+
+    assert.deepEqual(L.matchSquad(team, events, 1), ['Иванов А.', 'Петров П.', 'Ушедший У.']);
+    assert.deepEqual(L.matchSquad({ id: 2, players: [] }, events, 2), ['Волков В.'], 'в заявке пусто — видны записи');
+    assert.deepEqual(L.matchSquad(null, events, 2), ['Волков В.'], 'команды нет — остаются только записи');
+});
+
+test('переименование игрока переносит его записи на новое имя', () => {
+    const events = [
+        { team: 1, player: 'Иванов А.', type: 'goal' },
+        { team: 2, player: 'Иванов А.', type: 'assist' }
+    ];
+    const renamed = L.renamePlayerEvents(events, 1, 'Иванов А.', 'Иванов-старший');
+
+    assert.deepEqual(renamed, [
+        { team: 1, player: 'Иванов-старший', type: 'goal' },
+        { team: 2, player: 'Иванов А.', type: 'assist' }
+    ]);
+    assert.equal(events[0].player, 'Иванов А.', 'исходный список не мутируется');
+});
+
+test('порядок матчей в админке: сначала прошедшие, затем предстоящие', () => {
+    const matches = [
+        { id: 1, teamA: 1, teamB: 2, scoreA: null, scoreB: null, date: '2026-09-25', finished: false },
+        { id: 2, teamA: 1, teamB: 2, scoreA: 1, scoreB: 0, date: '2026-09-10', finished: true },
+        { id: 3, teamA: 1, teamB: 2, scoreA: null, scoreB: null, date: '2026-09-20', finished: false },
+        { id: 4, teamA: 1, teamB: 2, scoreA: 0, scoreB: 3, date: '2026-09-15', finished: true }
+    ];
+
+    const groups = L.groupMatchesForAdmin(matches);
+
+    assert.deepEqual(groups.finished.map((match) => match.id), [4, 2], 'прошедшие — от новых к старым');
+    assert.deepEqual(groups.upcoming.map((match) => match.id), [3, 1], 'предстоящие — от ближних к дальним');
+    assert.deepEqual(groups.all.map((match) => match.id), [4, 2, 3, 1]);
+});
+
+test('normalizeData: события матчей сохраняются, «мусор» отбрасывается', () => {
+    const result = L.normalizeData({
+        teams: [
+            { id: 1, name: 'Спартак', players: ['Иванов А.'] },
+            { id: 2, name: 'Зенит', players: [] }
+        ],
+        matches: [{
+            id: 1, teamA: 1, teamB: 2, scoreA: 1, scoreB: 0, date: '2026-09-10', finished: true,
+            events: [
+                { team: 1, player: 'Иванов А.', type: 'goal' },
+                { team: 5, player: 'Чужой', type: 'goal' }
+            ]
+        }]
+    });
+
+    assert.equal(result.repaired, true, 'событие чужой команды — это исправление данных');
+    assert.deepEqual(result.data.matches[0].events, [{ team: 1, player: 'Иванов А.', type: 'goal' }]);
+    assert.equal(result.data.version, 3, 'в данных отмечена новая версия формата');
 });
 
 test('нормализация: пустой турнир — допустимое состояние, а не «битые данные»', () => {
