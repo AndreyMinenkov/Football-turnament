@@ -502,6 +502,16 @@
         margin-top: 0.25rem;
     }
 
+    /* --- Лучшие игроки: таблица бомбардиров и ассистентов --- */
+    .players-table .player-name {
+        font-weight: 500;
+    }
+
+    .players-table .player-goals {
+        font-weight: 700;
+        color: #1b5e20;
+    }
+
     /* --- Админ-панель --- */
     .admin-panel {
         background: #202124;
@@ -916,6 +926,24 @@
     .standings-table td.cell-team {
         white-space: normal;
         overflow-wrap: anywhere;
+    }
+
+    /* --- Лучшие игроки: на телефоне команда уходит под имя игрока --- */
+    .players-table .col-optional {
+        display: none;
+    }
+
+    .players-table td.cell-player {
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+    .players-table .row-detail {
+        display: block;
+        margin-top: 0.125rem;
+        font-size: 0.6875rem;
+        font-weight: 400;
+        color: #5f6368;
     }
 
     .data-table {

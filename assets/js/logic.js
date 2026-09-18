@@ -572,6 +572,76 @@
         };
     }
 
+    /**
+     * Лучшие игроки: голы и голевые передачи по всем матчам турнира.
+     * Сортировка — сначала по голам, затем по передачам, затем по имени.
+     * В список попадают только те, у кого есть хотя бы одна запись:
+     * это таблица результативности, а не весь заявочный лист.
+     */
+    function computePlayerStats(data) {
+        var teams = (data && Array.isArray(data.teams)) ? data.teams : [];
+        var matches = (data && Array.isArray(data.matches)) ? data.matches : [];
+        var byKey = {};
+        var rows = [];
+
+        var rowFor = function (teamId, player) {
+            var id = toInt(teamId);
+            var name = cleanText(player, CONFIG.maxPlayerNameLength);
+            var key = id + '|' + name.toLowerCase();
+
+            if (!byKey[key]) {
+                var team = findTeam(teams, id);
+
+                byKey[key] = {
+                    teamId: id,
+                    teamName: team ? team.name : 'Неизвестная команда',
+                    player: name,
+                    goals: 0,
+                    assists: 0
+                };
+                rows.push(byKey[key]);
+            }
+
+            return byKey[key];
+        };
+
+        matches.forEach(function (match) {
+            (Array.isArray(match.events) ? match.events : []).forEach(function (event) {
+                if (!isPlainObject(event) || !isEventType(event.type)) {
+                    return;
+                }
+
+                var player = cleanText(event.player, CONFIG.maxPlayerNameLength);
+
+                if (!player) {
+                    return;
+                }
+
+                var row = rowFor(event.team, player);
+
+                if (event.type === 'goal') {
+                    row.goals += 1;
+                } else {
+                    row.assists += 1;
+                }
+            });
+        });
+
+        rows.sort(function (a, b) {
+            return b.goals - a.goals ||
+                b.assists - a.assists ||
+                String(a.player).localeCompare(String(b.player), 'ru') ||
+                String(a.teamName).localeCompare(String(b.teamName), 'ru');
+        });
+
+        rows.forEach(function (row, index) {
+            row.place = index + 1;
+            row.total = row.goals + row.assists;
+        });
+
+        return rows;
+    }
+
     /* ------------------------------------------------------------------ */
     /* События матча: голы и голевые передачи                             */
     /* ------------------------------------------------------------------ */
@@ -1086,6 +1156,7 @@
         renamePlayerEvents: renamePlayerEvents,
         computeStandings: computeStandings,
         getStats: getStats,
+        computePlayerStats: computePlayerStats,
         touchData: touchData,
         normalizeData: normalizeData,
         loadFromStorage: loadFromStorage,

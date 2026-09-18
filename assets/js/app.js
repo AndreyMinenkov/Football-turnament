@@ -970,6 +970,48 @@
         }).join('');
     }
 
+    /**
+     * Лучшие игроки: бомбардиры и ассистенты по всем матчам турнира.
+     * Сортировка — по голам, затем по голевым передачам (см. computePlayerStats).
+     */
+    function renderPlayers() {
+        var body = $('players-body');
+
+        if (!body) {
+            return;
+        }
+
+        var rows = L.computePlayerStats(state.data);
+
+        if (!rows.length) {
+            body.innerHTML = '<tr><td colspan="5" class="empty-state">' +
+                (state.data.matches.length
+                    ? 'Голы и голевые передачи ещё не отмечены — их вносит администратор в карточке матча'
+                    : 'Матчи ещё не добавлены') +
+            '</td></tr>';
+            return;
+        }
+
+        body.innerHTML = rows.map(function (row) {
+            return '<tr>' +
+                '<td class="num font-medium text-dark-600">' + row.place + '</td>' +
+                '<td class="cell-player">' +
+                    '<span class="player-name">' + esc(row.player) + '</span>' +
+                    // На телефоне столбец «Команда» скрыт, и название выводится под именем
+                    '<span class="row-detail">' + esc(row.teamName) + '</span>' +
+                '</td>' +
+                '<td class="col-optional">' +
+                    '<div class="flex items-center gap-3">' +
+                        teamBadge({ id: row.teamId, name: row.teamName }, true) +
+                        '<span>' + esc(row.teamName) + '</span>' +
+                    '</div>' +
+                '</td>' +
+                '<td class="num player-goals">' + row.goals + '</td>' +
+                '<td class="num">' + row.assists + '</td>' +
+            '</tr>';
+        }).join('');
+    }
+
     function renderMatches() {
         var list = L.selectMatches(state.data.matches, state.matchesFilter);
 
@@ -989,6 +1031,7 @@
         renderStandings();
         renderTeams();
         renderMatches();
+        renderPlayers();
         renderAdmin();
     }
 
@@ -1474,7 +1517,7 @@
     /* Роутинг и сессия администратора (хэш-адреса: #/standings и т.п.)   */
     /* ================================================================== */
 
-    var ROUTES = { home: true, standings: true, teams: true, matches: true, admin: true };
+    var ROUTES = { home: true, standings: true, teams: true, matches: true, players: true, admin: true };
 
     function parseHash() {
         var raw = String(window.location.hash || '')
@@ -1593,6 +1636,8 @@
             renderTeams();
         } else if (target === 'matches') {
             renderMatches();
+        } else if (target === 'players') {
+            renderPlayers();
         }
     }
 

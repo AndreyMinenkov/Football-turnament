@@ -302,6 +302,7 @@ test('все страницы открываются и по меню, и по �
         ['standings', 'page-standings'],
         ['teams', 'page-teams'],
         ['matches', 'page-matches'],
+        ['players', 'page-players'],
         ['home', 'page-home']
     ];
 
@@ -449,6 +450,14 @@ test('админ-панель целиком в браузере: вход, ко
     await clickInView(page, '[data-action="match-back"]');
     assert.equal(await sectionVisible(page, 'admin-match-list-view'), true, 'список матчей вернулся');
 
+    // Отмеченный гол сразу виден на публичной странице «Лучшие игроки»
+    await page.click('[data-nav="players"]');
+    assert.equal(await sectionVisible(page, 'page-players'), true, 'открылась страница лучших игроков');
+    const bestPlayers = await page.$eval('#players-body tr', (row) =>
+        Array.from(row.querySelectorAll('td')).map((cell) => cell.textContent.trim()));
+    assert.equal(bestPlayers.some((cell) => cell.includes('Тестовый Игрок')), true, 'игрок с голом попал в список');
+    assert.deepEqual(bestPlayers.slice(3), ['1', '0'], 'в таблице: один гол, ноль передач');
+
     // Ничья 2:2 приносит по одному очку каждой команде
     const after = await dataSnapshot(page);
     assert.equal(after.points[1], before.points[1] + 1, 'очко первой команде');
@@ -506,20 +515,37 @@ test('сайт работает из подпапки — как на GitHub Pag
     await new Promise((resolve) => subServer.listen(0, '127.0.0.1', resolve));
 
     const subUrl = 'http://127.0.0.1:' + subServer.address().port + '/repo/';
-    const { page, problems } = await openPage({ url: subUrl });
 
-    assert.equal(await textOf(page, '#stat-teams'), '4', 'данные загрузились из подпапки');
-    assert.equal(await page.$$eval('#standings-body tr', (rows) => rows.length), 4);
-    assert.equal(await page.$eval('body', (element) => getComputedStyle(element).backgroundColor), 'rgb(248, 249, 250)');
+    // Этот тест идёт в отдельном браузере: так он не зависит от состояния,
+    // которое накопили предыдущие тесты (страницы, контексты, кэш).
+    const ownBrowser = await puppeteer.launch({
+        executablePath: CHROME,
+        headless: true,
+        args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage']
+    });
 
-    // Файла данных по адресу макета в этой подпапке нет — браузер сообщает об этом в консоли,
-    // это ожидаемо: приложение берёт data.json от самого сайта. Проверяем отсутствие других проблем.
-    const meaningful = problems.filter((item) => !item.includes('Failed to load resource'));
-    assert.deepEqual(meaningful, [], 'все ресурсы сайта найдены по относительным путям');
+    const sharedBrowser = browser;
+    browser = ownBrowser;
 
-    await page.close();
-    await new Promise((resolve) => subServer.close(resolve));
-    fs.rmSync(tempRoot, { recursive: true, force: true });
+    try {
+        const { page, problems } = await openPage({ url: subUrl });
+
+        assert.equal(await textOf(page, '#stat-teams'), '4', 'данные загрузились из подпапки');
+        assert.equal(await page.$$eval('#standings-body tr', (rows) => rows.length), 4);
+        assert.equal(await page.$eval('body', (element) => getComputedStyle(element).backgroundColor), 'rgb(248, 249, 250)');
+
+        // Файла данных по адресу макета в этой подпапке нет — браузер сообщает об этом в консоли,
+        // это ожидаемо: приложение берёт data.json от самого сайта. Проверяем отсутствие других проблем.
+        const meaningful = problems.filter((item) => !item.includes('Failed to load resource'));
+        assert.deepEqual(meaningful, [], 'все ресурсы сайта найдены по относительным путям');
+
+        await page.close();
+    } finally {
+        browser = sharedBrowser;
+        await ownBrowser.close();
+        await new Promise((resolve) => subServer.close(resolve));
+        fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
 });
 
 test('статические файлы отдаются с нужными типами, неизвестный адрес — 404.html', { skip }, async () => {

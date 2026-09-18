@@ -247,6 +247,40 @@ test('команды: карточки, поиск и состав', () => {
     assert.equal(app.$$('#teams-grid article').length, 4);
 });
 
+test('лучшие игроки: страница собирает голы и голевые передачи с матчей', () => {
+    const app = boot();
+
+    // Пока записей нет — понятная подсказка вместо пустой таблицы
+    app.navigate('players');
+    assert.equal(app.activeSection(), 'page-players');
+    assert.match(app.id('players-body').textContent, /ещё не отмечены/);
+
+    // Администратор отмечает в карточке матча два гола, пас и гол соперника
+    app.login();
+    app.openMatch(1);
+    app.click(app.markButton(1, 'Иванов А.', 'goal'));
+    app.click(app.markButton(1, 'Иванов А.', 'goal'));
+    app.click(app.markButton(1, 'Петров П.', 'assist'));
+    app.click(app.markButton(2, 'Кузнецов К.', 'goal'));
+
+    // Страница обновилась: сверху бомбардир, при равных голах выше тот, у кого больше передач
+    app.navigate('players');
+    const rows = Array.from(app.id('players-body').querySelectorAll('tr'));
+    const numbers = (row) => Array.from(row.querySelectorAll('td.num')).map((cell) => cell.textContent.trim());
+
+    assert.equal(rows.length, 3, 'показаны только игроки с записями');
+    assert.deepEqual(rows.map((row) => row.querySelector('.player-name').textContent),
+        ['Иванов А.', 'Кузнецов К.', 'Петров П.']);
+    assert.deepEqual(numbers(rows[0]), ['1', '2', '0'], 'место, голы, пасы');
+    assert.match(rows[0].querySelector('.col-optional').textContent, /Спартак/, 'команда игрока показана');
+    assert.deepEqual(numbers(rows[1]), ['2', '1', '0']);
+    assert.deepEqual(numbers(rows[2]), ['3', '0', '1'], 'пас без голов — ниже гола');
+
+    // Кнопка в меню ведёт на страницу
+    app.click(app.$('[data-nav="players"]'));
+    assert.equal(app.activeSection(), 'page-players');
+});
+
 test('матчи: фильтры «все», «завершённые», «предстоящие»', () => {
     const app = boot();
 

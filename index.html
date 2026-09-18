@@ -29,7 +29,7 @@
 
     <!-- Стили: файл Tailwind собирается заранее (npm run build:css), шрифт Roboto — локальный.
          ?v= — метка версии: после обновления сайта браузеры сразу берут свежие файлы, а не кэш. -->
-    <link rel="stylesheet" href="assets/css/tailwind.css?v=8">
+    <link rel="stylesheet" href="assets/css/tailwind.css?v=9">
 </head>
 <body class="font-sans bg-dark-50 text-dark-900 antialiased">
 
@@ -153,6 +153,9 @@
                     <button type="button" class="nav-link" data-nav="matches" data-action="navigate" data-page="matches">
                         <svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg>Матчи
                     </button>
+                    <button type="button" class="nav-link" data-nav="players" data-action="navigate" data-page="players">
+                        <svg class="icon" aria-hidden="true"><use href="#i-ball"></use></svg>Лучшие игроки
+                    </button>
                     <button type="button" class="nav-link" data-nav="admin" data-action="navigate" data-page="admin">
                         <svg class="icon" aria-hidden="true"><use href="#i-cog"></use></svg>Админ
                     </button>
@@ -170,6 +173,7 @@
             <button type="button" class="nav-link w-full" data-nav="standings" data-action="navigate" data-page="standings">Таблица</button>
             <button type="button" class="nav-link w-full" data-nav="teams" data-action="navigate" data-page="teams">Команды</button>
             <button type="button" class="nav-link w-full" data-nav="matches" data-action="navigate" data-page="matches">Матчи</button>
+            <button type="button" class="nav-link w-full" data-nav="players" data-action="navigate" data-page="players">Лучшие игроки</button>
             <button type="button" class="nav-link w-full" data-nav="admin" data-action="navigate" data-page="admin">Админ-панель</button>
         </nav>
     </header>
@@ -193,6 +197,8 @@
                                     data-action="navigate" data-page="standings">Таблица</button>
                             <button type="button" class="btn bg-primary-600 text-white hover:bg-primary-500"
                                     data-action="navigate" data-page="matches">Матчи</button>
+                            <button type="button" class="btn bg-white text-primary-800 hover:bg-primary-50"
+                                    data-action="navigate" data-page="players">Лучшие игроки</button>
                         </div>
                     </div>
                 </div>
@@ -310,6 +316,36 @@
                 </div>
             </div>
             <div id="matches-list" class="space-y-3"></div>
+        </section>
+
+        <!-- ========================= ЛУЧШИЕ ИГРОКИ ========================= -->
+        <section id="page-players" class="page-section">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h2 class="section-title flex items-center gap-2">
+                        <svg class="icon text-primary-700" aria-hidden="true"><use href="#i-ball"></use></svg>Лучшие игроки
+                    </h2>
+                    <p class="text-xs text-dark-600 sm:max-w-md">
+                        Сначала игроки с большим числом голов, при равенстве — с большим числом голевых передач.
+                        Голы и передачи отмечает администратор в карточке матча.
+                    </p>
+                </div>
+                <div class="table-wrap">
+                    <table class="data-table players-table">
+                        <caption class="sr-only">Лучшие игроки турнира: голы и голевые передачи</caption>
+                        <thead>
+                            <tr>
+                                <th class="num" scope="col" title="Место">#</th>
+                                <th scope="col">Игрок</th>
+                                <th class="col-optional" scope="col">Команда</th>
+                                <th class="num" scope="col" title="Забитые мячи">Голы</th>
+                                <th class="num" scope="col" title="Голевые передачи">Пасы</th>
+                            </tr>
+                        </thead>
+                        <tbody id="players-body"></tbody>
+                    </table>
+                </div>
+            </div>
         </section>
 
         <!-- ======================= ВХОД АДМИНИСТРАТОРА ======================= -->
@@ -602,9 +638,9 @@
 
     <!-- Логика: настройки → чистая логика → синхронизация с репозиторием → слой DOM.
          ?v= — метка версии, чтобы после обновления сайта не использовался старый кэш. -->
-    <script src="assets/js/config.js?v=9" defer></script>
-    <script src="assets/js/logic.js?v=9" defer></script>
-    <script src="assets/js/sync.js?v=9" defer></script>
-    <script src="assets/js/app.js?v=9" defer></script>
+    <script src="assets/js/config.js?v=10" defer></script>
+    <script src="assets/js/logic.js?v=10" defer></script>
+    <script src="assets/js/sync.js?v=10" defer></script>
+    <script src="assets/js/app.js?v=10" defer></script>
 </body>
 </html>

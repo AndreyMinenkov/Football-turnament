@@ -470,6 +470,93 @@ test('normalizeData: события матчей сохраняются, «му�
     assert.equal(result.data.version, 3, 'в данных отмечена новая версия формата');
 });
 
+test('лучшие игроки: сортировка по голам, затем по голевым передачам', () => {
+    const data = {
+        teams: [
+            { id: 1, name: 'Спартак', players: ['Иванов А.', 'Петров П.'] },
+            { id: 2, name: 'Динамо', players: ['Сидоров С.'] }
+        ],
+        matches: [
+            {
+                id: 1, teamA: 1, teamB: 2, scoreA: 3, scoreB: 1, date: '2026-09-10', finished: true,
+                events: [
+                    { team: 1, player: 'Иванов А.', type: 'goal' },
+                    { team: 1, player: 'Иванов А.', type: 'goal' },
+                    { team: 1, player: 'Петров П.', type: 'assist' },
+                    { team: 2, player: 'Сидоров С.', type: 'goal' }
+                ]
+            },
+            {
+                id: 2, teamA: 2, teamB: 1, scoreA: 2, scoreB: 1, date: '2026-09-17', finished: true,
+                events: [
+                    { team: 1, player: 'Петров П.', type: 'goal' },
+                    { team: 1, player: 'Иванов А.', type: 'assist' }
+                ]
+            }
+        ]
+    };
+
+    const rows = L.computePlayerStats(data);
+
+    assert.deepEqual(rows.map((row) => row.player), ['Иванов А.', 'Петров П.', 'Сидоров С.']);
+    assert.deepEqual(
+        rows.map((row) => ({ goals: row.goals, assists: row.assists, total: row.total, team: row.teamName })),
+        [
+            { goals: 2, assists: 1, total: 3, team: 'Спартак' },
+            { goals: 1, assists: 1, total: 2, team: 'Спартак' },
+            { goals: 1, assists: 0, total: 1, team: 'Динамо' }
+        ]
+    );
+    assert.deepEqual(rows.map((row) => row.place), [1, 2, 3]);
+});
+
+test('лучшие игроки: равные голы сравниваются по передачам, игроки без записей не попадают', () => {
+    const data = {
+        teams: [
+            { id: 1, name: 'Спартак', players: ['Иванов А.', 'Петров П.', 'Сидоров С.'] },
+            { id: 2, name: 'Динамо', players: [] }
+        ],
+        matches: [{
+            id: 1, teamA: 1, teamB: 2, scoreA: 2, scoreB: 0, date: '2026-09-10', finished: true,
+            events: [
+                { team: 1, player: 'Петров П.', type: 'goal' },
+                { team: 1, player: 'Иванов А.', type: 'goal' },
+                { team: 1, player: 'Иванов А.', type: 'assist' }
+            ]
+        }]
+    };
+
+    const rows = L.computePlayerStats(data);
+
+    // Один гол у обоих, но у Иванова есть передача — он выше
+    assert.deepEqual(rows.map((row) => row.player), ['Иванов А.', 'Петров П.']);
+    assert.equal(rows.some((row) => row.player === 'Сидоров С.'), false, 'игрок без записей не показан');
+});
+
+test('лучшие игроки: пустые данные и записи игроков без заявки', () => {
+    assert.deepEqual(L.computePlayerStats(null), []);
+    assert.deepEqual(L.computePlayerStats({ teams: [], matches: [] }), []);
+
+    // Игрок отмечен в матче, но из состава его убрали: запись остаётся, команда известна
+    const rows = L.computePlayerStats({
+        teams: [{ id: 1, name: 'Спартак', players: [] }],
+        matches: [{
+            id: 1, teamA: 1, teamB: 2, scoreA: 1, scoreB: 0, date: '2026-09-10', finished: true,
+            events: [
+                { team: 1, player: 'Ушедший У.', type: 'goal' },
+                { team: 9, player: 'Чужой Ч.', type: 'goal' },
+                { team: 1, player: 'Ушедший У.', type: 'карточка' }
+            ]
+        }]
+    });
+
+    assert.equal(rows.length, 2, 'неизвестный тип события не считается');
+    assert.deepEqual(rows[0], {
+        teamId: 1, teamName: 'Спартак', player: 'Ушедший У.', goals: 1, assists: 0, place: 1, total: 1
+    });
+    assert.equal(rows[1].teamName, 'Неизвестная команда');
+});
+
 test('нормализация: пустой турнир — допустимое состояние, а не «битые данные»', () => {
     // Именно такая ситуация была в реальном репозитории: администратор удалил все команды.
     // Раньше приложение подменяло пустой список демонстрационными командами.
