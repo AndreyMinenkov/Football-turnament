@@ -1,7 +1,7 @@
 {
-  "version": 2,
-  "revision": 19,
-  "updatedAt": "2026-09-18T06:39:52.186Z",
+  "version": 3,
+  "revision": 21,
+  "updatedAt": "2026-09-18T08:16:06.189Z",
   "teams": [
     {
       "id": 1,
@@ -40,7 +40,8 @@
       "scoreA": 1,
       "scoreB": 5,
       "date": "2026-09-15",
-      "finished": true
+      "finished": true,
+      "events": []
     },
     {
       "id": 2,
@@ -49,7 +50,8 @@
       "scoreA": 1,
       "scoreB": 2,
       "date": "2026-09-15",
-      "finished": true
+      "finished": true,
+      "events": []
     },
     {
       "id": 3,
@@ -58,7 +60,19 @@
       "scoreA": 2,
       "scoreB": 2,
       "date": "2026-09-16",
-      "finished": true
+      "finished": true,
+      "events": [
+        {
+          "team": 4,
+          "player": "Андрей",
+          "type": "goal"
+        },
+        {
+          "team": 4,
+          "player": "Андрей",
+          "type": "assist"
+        }
+      ]
     },
     {
       "id": 4,
@@ -67,7 +81,8 @@
       "scoreA": 1,
       "scoreB": 1,
       "date": "2026-09-16",
-      "finished": true
+      "finished": true,
+      "events": []
     }
   ]
 }
