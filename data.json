@@ -1,7 +1,7 @@
 {
   "version": 3,
-  "revision": 44,
-  "updatedAt": "2026-09-19T15:37:53.365Z",
+  "revision": 45,
+  "updatedAt": "2026-09-19T15:39:06.059Z",
   "teams": [
     {
       "id": 1,
@@ -95,6 +95,15 @@
       "date": "2026-09-16",
       "finished": true,
       "events": []
+    },
+    {
+      "id": 5,
+      "teamA": 5,
+      "teamB": 2,
+      "date": "2026-09-21",
+      "scoreA": null,
+      "scoreB": null,
+      "finished": false
     }
   ]
 }
