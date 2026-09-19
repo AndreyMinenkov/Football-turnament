@@ -1,7 +1,7 @@
 {
   "version": 3,
-  "revision": 22,
-  "updatedAt": "2026-09-19T15:35:20.522Z",
+  "revision": 23,
+  "updatedAt": "2026-09-19T15:36:01.229Z",
   "teams": [
     {
       "id": 1,
@@ -34,7 +34,9 @@
     {
       "id": 5,
       "name": "Большой Театр",
-      "players": []
+      "players": [
+        "Носаков Василий"
+      ]
     }
   ],
   "matches": [
