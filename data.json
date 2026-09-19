@@ -1,7 +1,7 @@
 {
   "version": 3,
-  "revision": 43,
-  "updatedAt": "2026-09-19T15:37:30.831Z",
+  "revision": 44,
+  "updatedAt": "2026-09-19T15:37:53.365Z",
   "teams": [
     {
       "id": 1,
@@ -78,6 +78,11 @@
           "team": 4,
           "player": "Андрей",
           "type": "assist"
+        },
+        {
+          "team": 4,
+          "player": "Андрей",
+          "type": "goal"
         }
       ]
     },
