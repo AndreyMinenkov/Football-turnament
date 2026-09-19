@@ -1,7 +1,7 @@
 {
   "version": 3,
-  "revision": 45,
-  "updatedAt": "2026-09-19T15:39:06.059Z",
+  "revision": 47,
+  "updatedAt": "2026-09-19T15:42:58.880Z",
   "teams": [
     {
       "id": 1,
@@ -61,49 +61,14 @@
       "events": []
     },
     {
-      "id": 3,
-      "teamA": 4,
-      "teamB": 1,
-      "scoreA": 2,
-      "scoreB": 2,
-      "date": "2026-09-16",
-      "finished": true,
-      "events": [
-        {
-          "team": 4,
-          "player": "Андрей",
-          "type": "goal"
-        },
-        {
-          "team": 4,
-          "player": "Андрей",
-          "type": "assist"
-        },
-        {
-          "team": 4,
-          "player": "Андрей",
-          "type": "goal"
-        }
-      ]
-    },
-    {
-      "id": 4,
-      "teamA": 2,
-      "teamB": 3,
-      "scoreA": 1,
-      "scoreB": 1,
-      "date": "2026-09-16",
-      "finished": true,
-      "events": []
-    },
-    {
       "id": 5,
       "teamA": 5,
       "teamB": 2,
-      "date": "2026-09-21",
       "scoreA": null,
       "scoreB": null,
-      "finished": false
+      "date": "2026-09-21",
+      "finished": false,
+      "events": []
     }
   ]
 }
